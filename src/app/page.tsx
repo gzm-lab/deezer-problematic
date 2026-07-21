@@ -73,13 +73,11 @@ export default function Home() {
           className={`px-6 py-3 rounded-xl font-medium transition-all ${
             platform === "spotify"
               ? "bg-accent text-white shadow-lg shadow-accent/25"
-              : "bg-surface border border-border text-muted hover:text-foreground opacity-60 cursor-not-allowed"
+              : "bg-surface border border-border text-muted hover:text-foreground"
           }`}
-          disabled
-          title="Bientôt disponible"
         >
           <span className="flex items-center gap-2">
-            🟢 Spotify <span className="text-xs opacity-70">bientôt</span>
+            🟢 Spotify
           </span>
         </button>
       </div>
@@ -119,17 +117,6 @@ export default function Home() {
         <div className="p-4 rounded-xl bg-danger/10 border border-danger/30 text-danger mb-6">
           <p className="font-medium">Erreur</p>
           <p className="text-sm mt-1">{error}</p>
-        </div>
-      )}
-
-      {/* Spotify placeholder */}
-      {platform === "spotify" && !error && (
-        <div className="p-8 rounded-xl bg-surface border border-border text-center">
-          <p className="text-3xl mb-2">🟢</p>
-          <p className="text-muted text-lg">Spotify arrive bientôt !</p>
-          <p className="text-sm text-muted mt-1">
-            Pour l&apos;instant, seule l&apos;analyse Deezer est disponible.
-          </p>
         </div>
       )}
 
