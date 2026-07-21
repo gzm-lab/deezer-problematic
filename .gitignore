@@ -136,3 +136,6 @@ Thumbs.db
 # Test files
 test_*.csv
 example_*.csv
+
+# Deezer OAuth cache
+.deezer_token.json

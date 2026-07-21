@@ -1,4 +1,4 @@
-"""CSV reader module for loading artist lists."""
+"""Module de lecture CSV pour charger les listes d'artistes."""
 
 import pandas as pd
 from typing import Set
@@ -6,42 +6,42 @@ from pathlib import Path
 
 
 def load_artists_from_csv(csv_file: str) -> Set[str]:
-    """Load artist names from a CSV file.
+    """Charge les noms d'artistes depuis un fichier CSV.
     
-    The CSV file should have at least one column containing artist names.
-    The first column is used by default.
+    Le fichier CSV doit contenir au minimum une colonne avec les noms d'artistes.
+    La première colonne est utilisée par défaut.
     
     Args:
-        csv_file: Path to the CSV file
+        csv_file: Chemin du fichier CSV
     
     Returns:
-        Set of artist names (lowercase for case-insensitive matching)
+        Set des noms d'artistes en minuscules
     
     Raises:
-        FileNotFoundError: If CSV file doesn't exist
-        pd.errors.EmptyDataError: If CSV file is empty
-        Exception: If CSV file has no columns
+        FileNotFoundError: Si le fichier CSV n'existe pas
+        pd.errors.EmptyDataError: Si le fichier CSV est vide
+        Exception: Si le fichier CSV n'a pas de colonnes
     """
     csv_path = Path(csv_file)
     
     if not csv_path.exists():
-        raise FileNotFoundError(f"CSV file not found: {csv_file}")
+        raise FileNotFoundError(f"Fichier CSV non trouvé: {csv_file}")
     
     try:
         df = pd.read_csv(csv_path)
     except pd.errors.EmptyDataError:
-        raise pd.errors.EmptyDataError(f"CSV file is empty: {csv_file}")
+        raise pd.errors.EmptyDataError(f"Fichier CSV vide: {csv_file}")
     
     if df.empty or len(df.columns) == 0:
-        raise Exception(f"CSV file has no data or columns: {csv_file}")
+        raise Exception(f"Fichier CSV sans données ou colonnes: {csv_file}")
     
-    # Get the first column (contains artist names)
+    # Récupérer la première colonne (noms d'artistes)
     artist_column = df.iloc[:, 0]
     
-    # Convert to set of lowercase names for case-insensitive matching
+    # Convertir en set de noms minuscules
     artists = set()
     for artist in artist_column:
-        if pd.notna(artist):  # Skip NaN values
+        if pd.notna(artist):  # Ignorer les valeurs NaN
             artists.add(str(artist).lower().strip())
     
     return artists
