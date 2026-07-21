@@ -106,7 +106,16 @@ async function fetchPlaylistWithTracks(
     throw new Error(`Erreur API Spotify: ${res.status}`);
   }
 
-  const data: SpotifyPlaylistResponse = await res.json();
+  const data = await res.json();
+
+  // DEBUG: log la structure de la réponse
+  console.error("SPOTIFY DEBUG - full keys:", Object.keys(data));
+  console.error("SPOTIFY DEBUG - tracks keys:", data.tracks ? Object.keys(data.tracks) : "NO TRACKS");
+  console.error("SPOTIFY DEBUG - tracks.items length:", data.tracks?.items?.length ?? "NO ITEMS");
+  if (data.tracks?.items?.[0]) {
+    console.error("SPOTIFY DEBUG - first item keys:", Object.keys(data.tracks.items[0]));
+    console.error("SPOTIFY DEBUG - first item.track:", JSON.stringify(data.tracks.items[0].track)?.slice(0, 200));
+  }
 
   const tracks: SpotifyTrackObject[] = [];
   if (data.tracks?.items) {
