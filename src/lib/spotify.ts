@@ -1,4 +1,5 @@
 // Logique API Spotify — utilise refresh token (Authorization Code flow)
+// Utilise l'API moderne avec additional_types=track
 
 import { AnalysisResult } from "./types";
 
@@ -14,6 +15,8 @@ interface SpotifyArtist {
 }
 
 interface SpotifyTrackObject {
+  type: string;
+  track: boolean;
   name: string;
   artists: SpotifyArtist[];
   album: {
@@ -21,15 +24,23 @@ interface SpotifyTrackObject {
   };
 }
 
-interface SpotifyTrackItem {
-  track: SpotifyTrackObject | null;
+interface SpotifyPlaylistItem {
+  item: SpotifyTrackObject | null;
+}
+
+interface SpotifyPlaylistItems {
+  href: string;
+  items: SpotifyPlaylistItem[];
+  limit: number;
+  next: string | null;
+  offset: number;
+  total: number;
 }
 
 // Cache des tokens d'accès
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
 async function getAccessToken(): Promise<string> {
-  // Token en cache encore valide (marge de 60s)
   if (cachedToken && Date.now() < cachedToken.expiresAt - 60000) {
     return cachedToken.token;
   }
@@ -45,13 +56,11 @@ async function getAccessToken(): Promise<string> {
   }
 
   if (!refreshToken) {
-    // Fallback: Client Credentials (accès limité, pas de tracks)
     throw new Error(
       "SPOTIFY_REFRESH_TOKEN manquant. Va sur /api/spotify/login pour t&apos;authentifier."
     );
   }
 
-  // Rafraîchir avec le refresh token
   const res = await fetch(SPOTIFY_AUTH, {
     method: "POST",
     headers: {
@@ -65,13 +74,12 @@ async function getAccessToken(): Promise<string> {
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
     throw new Error(
-      `Erreur refresh token Spotify: ${err.error_description || err.error || res.status}. Le refresh token a peut-être expiré — refais l&apos;authentification sur /api/spotify/login`
+      `Erreur refresh token Spotify. Le token a peut-être expiré — refais l&apos;authentification sur /api/spotify/login`
     );
   }
 
-  const data: { access_token: string; expires_in: number; refresh_token?: string } = await res.json();
+  const data: { access_token: string; expires_in: number } = await res.json();
   cachedToken = {
     token: data.access_token,
     expiresAt: Date.now() + data.expires_in * 1000,
@@ -90,74 +98,52 @@ export function extractSpotifyPlaylistId(url: string): string {
   return parts[idx + 1];
 }
 
-async function fetchPlaylistTracks(
+async function fetchAllPlaylistTracks(
   playlistId: string,
   accessToken: string
 ): Promise<{ tracks: SpotifyTrackObject[]; title: string }> {
-  // Récupérer playlist info + première page de tracks
-  const playlistUrl = `${SPOTIFY_API}/playlists/${playlistId}?market=FR`;
+  // Utiliser additional_types=track pour obtenir les pistes dans le endpoint playlist
+  let url: string | null =
+    `${SPOTIFY_API}/playlists/${playlistId}?additional_types=track&market=FR`;
 
-  const playlistRes = await fetch(playlistUrl, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-
-  if (!playlistRes.ok) {
-    if (playlistRes.status === 404) {
-      throw new Error("Playlist Spotify non trouvée. Vérifie l&apos;URL.");
-    }
-    if (playlistRes.status === 403) {
-      throw new Error(
-        "Accès refusé. La playlist est peut-être privée et tu n&apos;en es pas le propriétaire."
-      );
-    }
-    throw new Error(`Erreur API Spotify: ${playlistRes.status}`);
-  }
-
-  const playlistData = await playlistRes.json();
-  const title: string = playlistData.name || "";
-
-  // Récupérer les tracks via le endpoint dédié (nécessite refresh token)
-  const tracksUrl = `${SPOTIFY_API}/playlists/${playlistId}/tracks?market=FR&limit=100`;
-
-  const tracksRes = await fetch(tracksUrl, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-
-  if (!tracksRes.ok) {
-    if (tracksRes.status === 403) {
-      throw new Error(
-        "Accès refusé aux titres. Vérifie que le refresh token est valide (refais /api/spotify/login)."
-      );
-    }
-    throw new Error(`Erreur API Spotify (tracks): ${tracksRes.status}`);
-  }
-
-  const tracksData = await tracksRes.json();
   const tracks: SpotifyTrackObject[] = [];
+  let title = "";
 
-  if (tracksData.items) {
-    for (const item of tracksData.items) {
-      if (item.track) {
-        tracks.push(item.track);
-      }
-    }
-  }
-
-  // Pagination (si plus de 100 tracks)
-  let nextUrl: string | null = tracksData.next;
-  while (nextUrl) {
-    const nextRes = await fetch(nextUrl, {
+  while (url) {
+    const res: Response = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    if (!nextRes.ok) break;
 
-    const nextData = await nextRes.json();
-    if (nextData.items) {
-      for (const item of nextData.items) {
-        if (item.track) tracks.push(item.track);
+    if (!res.ok) {
+      if (res.status === 404) {
+        throw new Error("Playlist Spotify non trouvée. Vérifie l&apos;URL.");
+      }
+      if (res.status === 403) {
+        throw new Error(
+          "Accès refusé. La playlist est peut-être privée et tu n&apos;en es pas le propriétaire."
+        );
+      }
+      throw new Error(`Erreur API Spotify: ${res.status}`);
+    }
+
+    const data = await res.json() as Record<string, unknown>;
+
+    if (data.name && !title) {
+      title = data.name as string;
+    }
+
+    // Avec additional_types=track, les pistes sont dans data.items (pas data.tracks)
+    const items = data.items as SpotifyPlaylistItems | undefined;
+    if (items?.items) {
+      for (const playlistItem of items.items) {
+        if (playlistItem.item && playlistItem.item.type === "track") {
+          tracks.push(playlistItem.item);
+        }
       }
     }
-    nextUrl = nextData.next;
+
+    // Pagination via items.next
+    url = items?.next || null;
   }
 
   return { tracks, title };
@@ -174,6 +160,7 @@ export function spotifyCountMatches(
   const details: { title: string; artist: string; cover: string }[] = [];
 
   for (const track of tracks) {
+    if (!track.artists) continue;
     for (const artist of track.artists) {
       const artistName = artist.name.toLowerCase().trim();
       if (targetArtists.has(artistName)) {
@@ -197,7 +184,7 @@ export async function analyzeSpotifyPlaylist(
 ): Promise<AnalysisResult> {
   const playlistId = extractSpotifyPlaylistId(playlistUrl);
   const accessToken = await getAccessToken();
-  const { tracks, title } = await fetchPlaylistTracks(playlistId, accessToken);
+  const { tracks, title } = await fetchAllPlaylistTracks(playlistId, accessToken);
   const { count, details } = spotifyCountMatches(tracks, targetArtists);
 
   return {
