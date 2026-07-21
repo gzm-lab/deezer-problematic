@@ -26,10 +26,14 @@ export function extractPlaylistId(url: string): string {
 
 async function resolveShortLink(url: string): Promise<string> {
   // Les liens courts Deezer (link.deezer.com) redirigent vers l'URL canonique
+  // Il faut suivre toute la chaîne de redirections (pas juste la première)
   if (url.includes("link.deezer.com") || url.includes("dzr.page.link")) {
-    const res = await fetch(url, { method: "HEAD", redirect: "manual" });
-    const location = res.headers.get("location");
-    if (location) return location;
+    // Follow toutes les redirections et récupère l'URL finale
+    const res = await fetch(url, { method: "HEAD", redirect: "follow" });
+    const finalUrl = res.url;
+    if (finalUrl && !finalUrl.includes("link.deezer.com")) {
+      return finalUrl;
+    }
   }
   return url;
 }
