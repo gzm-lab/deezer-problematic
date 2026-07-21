@@ -40,50 +40,60 @@ export default function Home() {
     }
   }
 
+  const getScoreColor = (pct: number) => {
+    if (pct > 50) return "text-danger";
+    if (pct > 25) return "text-warning";
+    return "text-success";
+  };
+
+  const getBarColor = (pct: number) => {
+    if (pct > 50) return "bg-danger";
+    if (pct > 25) return "bg-warning";
+    return "bg-success";
+  };
+
   return (
-    <div className="max-w-2xl mx-auto px-4 py-16">
+    <div className="max-w-2xl mx-auto px-6 py-20">
       {/* Hero */}
       <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold tracking-tight mb-3">
-          Ta playlist est-elle{" "}
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent-light text-accent text-sm font-medium mb-6">
+          🎧 Beta · Deezer &amp; Spotify
+        </div>
+        <h1 className="text-4xl font-bold tracking-tight mb-4 text-foreground leading-tight">
+          Ta playlist est-elle<br />
           <span className="text-accent">problématique</span>&nbsp;?
         </h1>
-        <p className="text-muted text-lg">
-          Colle le lien d&apos;une playlist et découvre le pourcentage de titres
-          faits par des artistes dans la liste.
+        <p className="text-muted text-lg max-w-md mx-auto leading-relaxed">
+          Analyse le pourcentage de titres faits par des artistes dans la liste.
         </p>
       </div>
 
       {/* Platform selector */}
-      <div className="flex justify-center gap-2 mb-6">
+      <div className="flex justify-center gap-3 mb-8">
         <button
           onClick={() => { setPlatform("deezer"); setResult(null); setError(null); }}
-          className={`px-6 py-3 rounded-xl font-medium transition-all ${
+          className={`px-5 py-3 rounded-[var(--radius-md)] font-semibold text-sm transition-all ${
             platform === "deezer"
-              ? "bg-accent text-white shadow-lg shadow-accent/25"
-              : "bg-surface border border-border text-muted hover:text-foreground"
+              ? "bg-accent text-white shadow-lg shadow-accent/20"
+              : "bg-surface border border-border text-muted hover:text-foreground hover:border-accent/30"
           }`}
         >
-          <span className="flex items-center gap-2">
-            🎵 Deezer
-          </span>
+          🎵 Deezer
         </button>
         <button
-          onClick={() => setPlatform("spotify")}
-          className={`px-6 py-3 rounded-xl font-medium transition-all ${
+          onClick={() => { setPlatform("spotify"); setResult(null); setError(null); }}
+          className={`px-5 py-3 rounded-[var(--radius-md)] font-semibold text-sm transition-all ${
             platform === "spotify"
-              ? "bg-accent text-white shadow-lg shadow-accent/25"
-              : "bg-surface border border-border text-muted hover:text-foreground"
+              ? "bg-accent text-white shadow-lg shadow-accent/20"
+              : "bg-surface border border-border text-muted hover:text-foreground hover:border-accent/30"
           }`}
         >
-          <span className="flex items-center gap-2">
-            🟢 Spotify
-          </span>
+          🟢 Spotify
         </button>
       </div>
 
       {/* Input form */}
-      <form onSubmit={handleAnalyze} className="mb-8">
+      <form onSubmit={handleAnalyze} className="mb-10">
         <div className="flex gap-3">
           <input
             type="text"
@@ -91,15 +101,15 @@ export default function Home() {
             onChange={(e) => setUrl(e.target.value)}
             placeholder={
               platform === "deezer"
-                ? "https://www.deezer.com/playlist/123456789"
+                ? "https://www.deezer.com/playlist/..."
                 : "https://open.spotify.com/playlist/..."
             }
-            className="flex-1 px-4 py-3 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all"
+            className="flex-1 px-5 py-3.5 rounded-[var(--radius-md)] bg-surface border border-border text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all text-sm"
           />
           <button
             type="submit"
             disabled={loading || !url.trim()}
-            className="px-6 py-3 rounded-xl bg-accent text-white font-medium hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-accent/20"
+            className="px-7 py-3.5 rounded-[var(--radius-md)] bg-accent text-white font-semibold text-sm hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-accent/15"
           >
             {loading ? (
               <span className="flex items-center gap-2">
@@ -114,46 +124,35 @@ export default function Home() {
 
       {/* Error */}
       {error && (
-        <div className="p-4 rounded-xl bg-danger/10 border border-danger/30 text-danger mb-6">
-          <p className="font-medium">Erreur</p>
-          <p className="text-sm mt-1">{error}</p>
+        <div className="p-5 rounded-[var(--radius-md)] bg-danger-light border border-danger/20 text-danger mb-8">
+          <p className="font-semibold text-sm mb-1">Erreur</p>
+          <p className="text-sm opacity-90">{error}</p>
         </div>
       )}
 
       {/* Results */}
       {result && (
-        <div className="rounded-xl bg-surface border border-border overflow-hidden">
+        <div className="rounded-[var(--radius-lg)] bg-surface border border-border overflow-hidden shadow-sm">
           {/* Header */}
-          <div className="p-6 border-b border-border">
-            <p className="text-sm text-muted mb-1">
+          <div className="p-8 border-b border-border">
+            <p className="text-xs text-muted uppercase tracking-wider font-semibold mb-3">
+              {result.platform === "spotify" ? "🟢 Spotify" : "🎵 Deezer"} · Playlist
+            </p>
+            <p className="text-lg font-bold text-foreground mb-6">
               {result.playlistTitle || `Playlist ${result.playlistId}`}
             </p>
-            <div className="flex items-baseline gap-3">
-              <span
-                className={`text-5xl font-bold ${
-                  result.percentage > 50
-                    ? "text-danger"
-                    : result.percentage > 25
-                    ? "text-yellow-400"
-                    : "text-green-400"
-                }`}
-              >
+            <div className="flex items-baseline gap-4">
+              <span className={`text-6xl font-extrabold tracking-tight ${getScoreColor(result.percentage)}`}>
                 {result.percentage}%
               </span>
-              <span className="text-muted">
+              <span className="text-muted text-sm">
                 {result.matchingTracks} / {result.totalTracks} titres problématiques
               </span>
             </div>
             {/* Progress bar */}
-            <div className="mt-3 h-2 bg-background rounded-full overflow-hidden">
+            <div className="mt-5 h-2.5 bg-bg-warm rounded-full overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all duration-700 ${
-                  result.percentage > 50
-                    ? "bg-danger"
-                    : result.percentage > 25
-                    ? "bg-yellow-400"
-                    : "bg-green-400"
-                }`}
+                className={`h-full rounded-full transition-all duration-700 ease-out ${getBarColor(result.percentage)}`}
                 style={{ width: `${Math.min(result.percentage, 100)}%` }}
               />
             </div>
@@ -161,29 +160,29 @@ export default function Home() {
 
           {/* Track details */}
           {result.matchingTrackDetails.length > 0 && (
-            <div className="p-6">
-              <h3 className="text-sm font-medium text-muted uppercase tracking-wider mb-3">
+            <div className="p-8">
+              <h3 className="text-xs font-semibold text-muted uppercase tracking-wider mb-4">
                 Titres problématiques trouvés
               </h3>
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {result.matchingTrackDetails.map((track, i) => (
                   <div
                     key={i}
-                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-hover transition-colors"
+                    className="flex items-center gap-4 p-3 rounded-[var(--radius-sm)] hover:bg-bg-warm transition-colors"
                   >
                     {track.cover ? (
                       <img
                         src={track.cover}
                         alt={track.title}
-                        className="w-10 h-10 rounded object-cover"
+                        className="w-11 h-11 rounded-lg object-cover shadow-sm flex-shrink-0"
                       />
                     ) : (
-                      <div className="w-10 h-10 rounded bg-border flex items-center justify-center text-muted text-xs">
+                      <div className="w-11 h-11 rounded-lg bg-bg-warm border border-border flex items-center justify-center text-muted flex-shrink-0">
                         🎵
                       </div>
                     )}
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{track.title}</p>
+                      <p className="text-sm font-semibold text-foreground truncate">{track.title}</p>
                       <p className="text-xs text-muted truncate">{track.artist}</p>
                     </div>
                   </div>

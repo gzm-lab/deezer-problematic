@@ -8,7 +8,6 @@ export default function AdminPage() {
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
 
-  // Artistes
   const [artists, setArtists] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [newArtist, setNewArtist] = useState("");
@@ -98,7 +97,7 @@ export default function AdminPage() {
   }
 
   async function handleDelete(name: string) {
-    if (!confirm(`Supprimer "${name}" de la liste ?`)) return;
+    if (!confirm(`Supprimer « ${name} » de la liste ?`)) return;
 
     try {
       const res = await fetch("/api/artists", {
@@ -113,7 +112,7 @@ export default function AdminPage() {
 
       if (res.ok) {
         setArtists((prev) => prev.filter((a) => a !== name));
-        setFeedback({ type: "success", msg: `${name} supprimé` });
+        setFeedback({ type: "success", msg: `« ${name} » supprimé` });
       } else {
         setFeedback({ type: "error", msg: data.error || "Erreur" });
       }
@@ -131,29 +130,25 @@ export default function AdminPage() {
   // Login screen
   if (!authenticated) {
     return (
-      <div className="max-w-sm mx-auto px-4 py-24">
-        <h1 className="text-2xl font-bold text-center mb-8">Administration</h1>
+      <div className="max-w-sm mx-auto px-6 py-28">
+        <h1 className="text-2xl font-bold text-center mb-2 text-foreground">Administration</h1>
+        <p className="text-center text-muted text-sm mb-8">Gestion de la liste d&apos;artistes</p>
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-muted mb-1">
-              Mot de passe admin
-            </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-surface border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all"
-              placeholder="••••••••"
+              className="w-full px-5 py-3.5 rounded-[var(--radius-md)] bg-surface border border-border text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all text-sm"
+              placeholder="Mot de passe admin"
               autoFocus
             />
           </div>
-          {authError && (
-            <p className="text-sm text-danger">{authError}</p>
-          )}
+          {authError && <p className="text-sm text-danger font-medium">{authError}</p>}
           <button
             type="submit"
             disabled={authLoading || !password}
-            className="w-full py-3 rounded-xl bg-accent text-white font-medium hover:bg-accent-hover disabled:opacity-40 transition-all"
+            className="w-full py-3.5 rounded-[var(--radius-md)] bg-accent text-white font-semibold text-sm hover:bg-accent-hover disabled:opacity-40 transition-all shadow-lg shadow-accent/15"
           >
             {authLoading ? "Vérification..." : "Se connecter"}
           </button>
@@ -164,29 +159,28 @@ export default function AdminPage() {
 
   // Admin panel
   return (
-    <div className="max-w-2xl mx-auto px-4 py-12">
-      <div className="flex items-center justify-between mb-8">
+    <div className="max-w-2xl mx-auto px-6 py-12">
+      <div className="flex items-center justify-between mb-10">
         <div>
-          <h1 className="text-2xl font-bold">Gestion des artistes</h1>
+          <h1 className="text-2xl font-bold text-foreground">Gestion des artistes</h1>
           <p className="text-sm text-muted mt-1">
             {artists.length} artiste{artists.length > 1 ? "s" : ""} dans la liste
           </p>
         </div>
         <button
           onClick={handleLogout}
-          className="px-4 py-2 rounded-lg text-sm text-muted hover:text-foreground hover:bg-surface border border-border transition-all"
+          className="px-4 py-2 rounded-[var(--radius-sm)] text-sm font-medium text-muted hover:text-foreground hover:bg-bg-warm border border-border transition-all"
         >
           Déconnexion
         </button>
       </div>
 
-      {/* Feedback */}
       {feedback && (
         <div
-          className={`p-3 rounded-xl mb-6 text-sm ${
+          className={`p-4 rounded-[var(--radius-md)] mb-6 text-sm font-medium cursor-pointer ${
             feedback.type === "success"
-              ? "bg-green-500/10 border border-green-500/30 text-green-400"
-              : "bg-danger/10 border border-danger/30 text-danger"
+              ? "bg-success-light border border-success/20 text-success"
+              : "bg-danger-light border border-danger/20 text-danger"
           }`}
           onClick={() => setFeedback(null)}
         >
@@ -194,47 +188,36 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Add form */}
-      <form onSubmit={handleAdd} className="flex gap-3 mb-8">
+      <form onSubmit={handleAdd} className="flex gap-3 mb-10">
         <input
           type="text"
           value={newArtist}
           onChange={(e) => setNewArtist(e.target.value)}
           placeholder="Nom de l&apos;artiste à ajouter..."
-          className="flex-1 px-4 py-3 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all"
+          className="flex-1 px-5 py-3.5 rounded-[var(--radius-md)] bg-surface border border-border text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all text-sm"
         />
         <button
           type="submit"
           disabled={adding || !newArtist.trim()}
-          className="px-5 py-3 rounded-xl bg-accent text-white font-medium hover:bg-accent-hover disabled:opacity-40 transition-all"
+          className="px-6 py-3.5 rounded-[var(--radius-md)] bg-accent text-white font-semibold text-sm hover:bg-accent-hover disabled:opacity-40 transition-all shadow-lg shadow-accent/15"
         >
           {adding ? "..." : "Ajouter"}
         </button>
       </form>
 
-      {/* Import CSV hint */}
-      <details className="mb-8">
-        <summary className="text-sm text-muted cursor-pointer hover:text-foreground transition-colors">
-          📋 Importer depuis un CSV
+      <details className="mb-10 group">
+        <summary className="text-sm text-muted cursor-pointer hover:text-foreground transition-colors font-medium">
+          📋 Importer en masse
         </summary>
-        <div className="mt-3 p-4 rounded-lg bg-surface border border-border">
-          <p className="text-sm text-muted mb-2">
-            Pour l&apos;import en masse, ajoute les artistes un par un ou copie-colle le contenu
-            de ton CSV dans le champ ci-dessus (un par ligne).
-          </p>
+        <div className="mt-4 p-5 rounded-[var(--radius-md)] bg-surface border border-border">
           <textarea
-            className="w-full px-4 py-3 rounded-xl bg-background border border-border text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/50 text-sm min-h-[120px]"
+            id="bulkImport"
+            className="w-full px-4 py-3 rounded-[var(--radius-sm)] bg-bg-warm border border-border text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 text-sm min-h-[100px] resize-y"
             placeholder="Artiste 1&#10;Artiste 2&#10;Artiste 3"
-            onChange={async (e) => {
-              const lines = e.target.value.split("\n").filter((l) => l.trim());
-              if (lines.length > 0 && e.target.value.endsWith("\n")) {
-                // Bulk add on double newline
-              }
-            }}
           />
           <button
             onClick={async () => {
-              const textarea = document.querySelector("textarea") as HTMLTextAreaElement;
+              const textarea = document.getElementById("bulkImport") as HTMLTextAreaElement;
               if (!textarea) return;
               const lines = textarea.value.split("\n").filter((l) => l.trim());
               if (lines.length === 0) return;
@@ -250,40 +233,40 @@ export default function AdminPage() {
                     body: JSON.stringify({ name: line.trim() }),
                   });
                   if (res.ok) added++;
-                } catch {
-                  // continue
-                }
+                } catch { /* skip */ }
               }
               textarea.value = "";
               setFeedback({ type: "success", msg: `${added} artiste(s) ajouté(s) !` });
               fetchArtists();
             }}
-            className="mt-2 px-4 py-2 rounded-lg bg-accent/10 text-accent text-sm font-medium hover:bg-accent/20 transition-colors"
+            className="mt-3 px-5 py-2.5 rounded-[var(--radius-sm)] bg-accent-light text-accent text-sm font-semibold hover:bg-accent/15 transition-colors"
           >
-            Importer tout
+            Tout importer
           </button>
         </div>
       </details>
 
-      {/* Artist list */}
       {loading ? (
-        <div className="text-center py-12 text-muted">Chargement...</div>
+        <div className="text-center py-16 text-muted text-sm">Chargement...</div>
       ) : artists.length === 0 ? (
-        <div className="text-center py-12 text-muted">
-          <p className="text-lg mb-2">Aucun artiste dans la liste</p>
-          <p className="text-sm">Ajoute ton premier artiste ci-dessus.</p>
+        <div className="text-center py-16 bg-surface rounded-[var(--radius-lg)] border border-border">
+          <p className="text-4xl mb-3">📭</p>
+          <p className="text-foreground font-semibold mb-1">Aucun artiste</p>
+          <p className="text-sm text-muted">Ajoute ton premier artiste ci-dessus.</p>
         </div>
       ) : (
-        <div className="space-y-1">
-          {artists.map((artist) => (
+        <div className="bg-surface rounded-[var(--radius-lg)] border border-border overflow-hidden">
+          {artists.map((artist, i) => (
             <div
               key={artist}
-              className="flex items-center justify-between p-3 rounded-lg hover:bg-surface transition-colors group"
+              className={`flex items-center justify-between p-4 hover:bg-bg-warm transition-colors group ${
+                i < artists.length - 1 ? "border-b border-border" : ""
+              }`}
             >
-              <span className="text-sm font-medium capitalize">{artist}</span>
+              <span className="text-sm font-medium text-foreground capitalize">{artist}</span>
               <button
                 onClick={() => handleDelete(artist)}
-                className="px-3 py-1.5 rounded-lg text-xs text-muted hover:text-danger hover:bg-danger/10 opacity-0 group-hover:opacity-100 transition-all"
+                className="px-3 py-1.5 rounded-[var(--radius-sm)] text-xs font-medium text-muted hover:text-danger hover:bg-danger-light opacity-0 group-hover:opacity-100 transition-all"
               >
                 Supprimer
               </button>
