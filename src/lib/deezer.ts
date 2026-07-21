@@ -24,6 +24,25 @@ export function extractPlaylistId(url: string): string {
   return parts[idx + 1];
 }
 
+async function resolveShortLink(url: string): Promise<string> {
+  // Les liens courts Deezer (link.deezer.com) redirigent vers l'URL canonique
+  if (url.includes("link.deezer.com") || url.includes("dzr.page.link")) {
+    const res = await fetch(url, { method: "HEAD", redirect: "manual" });
+    const location = res.headers.get("location");
+    if (location) return location;
+  }
+  return url;
+}
+
+/**
+ * Extrait l'ID d'une playlist Deezer depuis n'importe quel format d'URL.
+ * Supporte les URLs canoniques, les liens courts, et les URLs avec query params.
+ */
+async function resolvePlaylistId(playlistUrl: string): Promise<string> {
+  const resolved = await resolveShortLink(playlistUrl);
+  return extractPlaylistId(resolved);
+}
+
 export async function fetchPlaylistTracks(playlistId: string, accessToken?: string): Promise<{
   tracks: DeezerTrack[];
   title: string;
@@ -106,7 +125,7 @@ export async function analyzeDeezerPlaylist(
   targetArtists: Set<string>,
   accessToken?: string
 ): Promise<AnalysisResult> {
-  const playlistId = extractPlaylistId(playlistUrl);
+  const playlistId = await resolvePlaylistId(playlistUrl);
   const { tracks, title } = await fetchPlaylistTracks(playlistId, accessToken);
   const { count, details } = countMatches(tracks, targetArtists);
 
