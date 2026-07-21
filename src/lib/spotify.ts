@@ -87,9 +87,8 @@ async function fetchPlaylistWithTracks(
   playlistId: string,
   accessToken: string
 ): Promise<{ tracks: SpotifyTrackObject[]; title: string; total: number }> {
-  // Récupérer nom + 100 premiers titres en un seul appel
-  const fields = "name,tracks.items(track(name,artists(name),album(images(url)))),tracks.total";
-  const url = `${SPOTIFY_API}/playlists/${playlistId}?fields=${encodeURIComponent(fields)}`;
+  // Récupérer nom + premiers titres en un seul appel
+  const url = `${SPOTIFY_API}/playlists/${playlistId}?market=FR`;
 
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
