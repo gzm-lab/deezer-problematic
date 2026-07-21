@@ -45,7 +45,7 @@ async function seedDefaultArtists(): Promise<void> {
   for (const artist of DEFAULT_ARTISTS) {
     const entry: ArtistEntry = { name: artist, addedAt: new Date().toISOString() };
     await put(blobKey(artist), JSON.stringify(entry), {
-      access: "public",
+      access: "private",
       contentType: "application/json",
     });
   }
@@ -63,7 +63,7 @@ export async function addArtist(name: string): Promise<{ success: boolean; error
 
     const entry: ArtistEntry = { name: trimmed, addedAt: new Date().toISOString() };
     await put(blobKey(trimmed), JSON.stringify(entry), {
-      access: "public",
+      access: "private",
       contentType: "application/json",
     });
     return { success: true };
