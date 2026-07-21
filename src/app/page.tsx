@@ -114,7 +114,7 @@ export default function Home() {
                   ? "Lien de la playlist Deezer..."
                   : "Lien de la playlist Spotify..."
               }
-              className="w-full px-4 sm:px-5 py-3 sm:py-3.5 pr-10 rounded-[var(--radius-md)] bg-surface border border-border text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all text-sm"
+              className="w-full px-4 sm:px-5 py-3 sm:py-3.5 pr-10 rounded-[var(--radius-md)] bg-surface border border-border text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all text-base"
             />
             {url && (
               <button
