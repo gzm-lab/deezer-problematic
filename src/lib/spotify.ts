@@ -132,18 +132,35 @@ async function fetchAllPlaylistTracks(
       title = data.name as string;
     }
 
-    // Avec additional_types=track, les pistes sont dans data.items (pas data.tracks)
-    const items = data.items as SpotifyPlaylistItems | undefined;
-    if (items?.items) {
-      for (const playlistItem of items.items) {
-        if (playlistItem.item && playlistItem.item.type === "track") {
-          tracks.push(playlistItem.item);
+    // Avec additional_types=track, les pistes sont dans data.items
+    // Page 1: data.items = { items: [...], next: "...", total: N }
+    // Page 2+: data.items = [ { item: {...} }, ... ]  (tableau direct)
+    const rawItems = data.items;
+    if (rawItems) {
+      if (Array.isArray(rawItems)) {
+        // Page 2+ : réponse du endpoint /items (tableau dans .items, pagination dans .next)
+        const pagingData = data as unknown as { items: SpotifyPlaylistItem[]; next: string | null };
+        for (const playlistItem of pagingData.items) {
+          if (playlistItem.item && playlistItem.item.type === "track") {
+            tracks.push(playlistItem.item);
+          }
         }
+        url = pagingData.next || null;
+      } else {
+        // Page 1 : objet paging
+        const paging = rawItems as SpotifyPlaylistItems;
+        if (paging.items) {
+          for (const playlistItem of paging.items) {
+            if (playlistItem.item && playlistItem.item.type === "track") {
+              tracks.push(playlistItem.item);
+            }
+          }
+        }
+        url = paging.next || null;
       }
+    } else {
+      url = null;
     }
-
-    // Pagination via items.next
-    url = items?.next || null;
   }
 
   return { tracks, title };
