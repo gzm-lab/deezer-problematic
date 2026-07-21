@@ -1,4 +1,4 @@
-// Logique API Spotify
+// Logique API Spotify — utilise refresh token (Authorization Code flow)
 
 import { AnalysisResult } from "./types";
 
@@ -25,25 +25,18 @@ interface SpotifyTrackItem {
   track: SpotifyTrackObject | null;
 }
 
-interface SpotifyPlaylistResponse {
-  name: string;
-  tracks: {
-    items: SpotifyTrackItem[];
-    next: string | null;
-    total: number;
-  };
-}
-
-// Cache du token
+// Cache des tokens d'accès
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
 async function getAccessToken(): Promise<string> {
+  // Token en cache encore valide (marge de 60s)
   if (cachedToken && Date.now() < cachedToken.expiresAt - 60000) {
     return cachedToken.token;
   }
 
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+  const refreshToken = process.env.SPOTIFY_REFRESH_TOKEN;
 
   if (!clientId || !clientSecret) {
     throw new Error(
@@ -51,20 +44,34 @@ async function getAccessToken(): Promise<string> {
     );
   }
 
+  if (!refreshToken) {
+    // Fallback: Client Credentials (accès limité, pas de tracks)
+    throw new Error(
+      "SPOTIFY_REFRESH_TOKEN manquant. Va sur /api/spotify/login pour t&apos;authentifier."
+    );
+  }
+
+  // Rafraîchir avec le refresh token
   const res = await fetch(SPOTIFY_AUTH, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
       Authorization: "Basic " + Buffer.from(`${clientId}:${clientSecret}`).toString("base64"),
     },
-    body: "grant_type=client_credentials",
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    }),
   });
 
   if (!res.ok) {
-    throw new Error(`Erreur d&apos;authentification Spotify: ${res.status}`);
+    const err = await res.json().catch(() => ({}));
+    throw new Error(
+      `Erreur refresh token Spotify: ${err.error_description || err.error || res.status}. Le refresh token a peut-être expiré — refais l&apos;authentification sur /api/spotify/login`
+    );
   }
 
-  const data: { access_token: string; expires_in: number } = await res.json();
+  const data: { access_token: string; expires_in: number; refresh_token?: string } = await res.json();
   cachedToken = {
     token: data.access_token,
     expiresAt: Date.now() + data.expires_in * 1000,
@@ -83,55 +90,77 @@ export function extractSpotifyPlaylistId(url: string): string {
   return parts[idx + 1];
 }
 
-async function fetchPlaylistWithTracks(
+async function fetchPlaylistTracks(
   playlistId: string,
   accessToken: string
-): Promise<{ tracks: SpotifyTrackObject[]; title: string; total: number }> {
-  // Spotify ne retourne pas les tracks par défaut, il faut le demander via fields
-  const fields = "name,tracks";
-  const url = `${SPOTIFY_API}/playlists/${playlistId}?market=FR&fields=${encodeURIComponent(fields)}`;
+): Promise<{ tracks: SpotifyTrackObject[]; title: string }> {
+  // Récupérer playlist info + première page de tracks
+  const playlistUrl = `${SPOTIFY_API}/playlists/${playlistId}?market=FR`;
 
-  const res = await fetch(url, {
+  const playlistRes = await fetch(playlistUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
-  if (!res.ok) {
-    if (res.status === 404) {
+  if (!playlistRes.ok) {
+    if (playlistRes.status === 404) {
       throw new Error("Playlist Spotify non trouvée. Vérifie l&apos;URL.");
     }
-    if (res.status === 403) {
+    if (playlistRes.status === 403) {
       throw new Error(
-        "Accès refusé. Vérifie que ton compte Spotify est Premium et que la playlist est publique."
+        "Accès refusé. La playlist est peut-être privée et tu n&apos;en es pas le propriétaire."
       );
     }
-    throw new Error(`Erreur API Spotify: ${res.status}`);
+    throw new Error(`Erreur API Spotify: ${playlistRes.status}`);
   }
 
-  const data = await res.json();
+  const playlistData = await playlistRes.json();
+  const title: string = playlistData.name || "";
 
-  // DEBUG: log la structure de la réponse
-  console.error("SPOTIFY DEBUG - full keys:", Object.keys(data));
-  console.error("SPOTIFY DEBUG - tracks keys:", data.tracks ? Object.keys(data.tracks) : "NO TRACKS");
-  console.error("SPOTIFY DEBUG - tracks.items length:", data.tracks?.items?.length ?? "NO ITEMS");
-  if (data.tracks?.items?.[0]) {
-    console.error("SPOTIFY DEBUG - first item keys:", Object.keys(data.tracks.items[0]));
-    console.error("SPOTIFY DEBUG - first item.track:", JSON.stringify(data.tracks.items[0].track)?.slice(0, 200));
+  // Récupérer les tracks via le endpoint dédié (nécessite refresh token)
+  const tracksUrl = `${SPOTIFY_API}/playlists/${playlistId}/tracks?market=FR&limit=100`;
+
+  const tracksRes = await fetch(tracksUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!tracksRes.ok) {
+    if (tracksRes.status === 403) {
+      throw new Error(
+        "Accès refusé aux titres. Vérifie que le refresh token est valide (refais /api/spotify/login)."
+      );
+    }
+    throw new Error(`Erreur API Spotify (tracks): ${tracksRes.status}`);
   }
 
+  const tracksData = await tracksRes.json();
   const tracks: SpotifyTrackObject[] = [];
-  if (data.tracks?.items) {
-    for (const item of data.tracks.items) {
+
+  if (tracksData.items) {
+    for (const item of tracksData.items) {
       if (item.track) {
         tracks.push(item.track);
       }
     }
   }
 
-  return {
-    tracks,
-    title: data.name || "",
-    total: data.tracks?.total || tracks.length,
-  };
+  // Pagination (si plus de 100 tracks)
+  let nextUrl: string | null = tracksData.next;
+  while (nextUrl) {
+    const nextRes = await fetch(nextUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!nextRes.ok) break;
+
+    const nextData = await nextRes.json();
+    if (nextData.items) {
+      for (const item of nextData.items) {
+        if (item.track) tracks.push(item.track);
+      }
+    }
+    nextUrl = nextData.next;
+  }
+
+  return { tracks, title };
 }
 
 export function spotifyCountMatches(
@@ -168,11 +197,9 @@ export async function analyzeSpotifyPlaylist(
 ): Promise<AnalysisResult> {
   const playlistId = extractSpotifyPlaylistId(playlistUrl);
   const accessToken = await getAccessToken();
-  const { tracks, title } = await fetchPlaylistWithTracks(playlistId, accessToken);
+  const { tracks, title } = await fetchPlaylistTracks(playlistId, accessToken);
   const { count, details } = spotifyCountMatches(tracks, targetArtists);
 
-  // Note: Spotify bloque la pagination pour les apps non-approuvées.
-  // On analyse les 100 premiers titres (largement suffisant pour l'immense majorité des playlists).
   return {
     platform: "spotify",
     playlistId,
