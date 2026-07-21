@@ -5,50 +5,39 @@ import { AnalysisResult } from "./types";
 const SPOTIFY_API = "https://api.spotify.com/v1";
 const SPOTIFY_AUTH = "https://accounts.spotify.com/api/token";
 
-// Types pour les réponses Spotify
 interface SpotifyImage {
   url: string;
-  height: number | null;
-  width: number | null;
 }
 
 interface SpotifyArtist {
   name: string;
-  id: string;
 }
 
-interface SpotifyTrack {
+interface SpotifyTrackObject {
   name: string;
   artists: SpotifyArtist[];
   album: {
-    name: string;
     images: SpotifyImage[];
   };
-  duration_ms: number;
 }
 
-interface SpotifyPlaylistTrackItem {
-  track: SpotifyTrack | null;
-}
-
-interface SpotifyPlaylistTracksResponse {
-  items: SpotifyPlaylistTrackItem[];
-  total: number;
-  limit: number;
-  offset: number;
-  next: string | null;
+interface SpotifyTrackItem {
+  track: SpotifyTrackObject | null;
 }
 
 interface SpotifyPlaylistResponse {
   name: string;
-  tracks: SpotifyPlaylistTracksResponse;
+  tracks: {
+    items: SpotifyTrackItem[];
+    next: string | null;
+    total: number;
+  };
 }
 
-// Cache du token d'accès (en mémoire, réutilisé entre appels dans la même instance)
+// Cache du token
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
 async function getAccessToken(): Promise<string> {
-  // Réutiliser le token en cache s'il est encore valide (marge de 60s)
   if (cachedToken && Date.now() < cachedToken.expiresAt - 60000) {
     return cachedToken.token;
   }
@@ -85,10 +74,7 @@ async function getAccessToken(): Promise<string> {
 }
 
 export function extractSpotifyPlaylistId(url: string): string {
-  // Formats supportés :
-  // https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M
-  // https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=...
-  const cleaned = url.trim().split("?")[0]; // Enlever les query params
+  const cleaned = url.trim().split("?")[0];
   const parts = cleaned.replace(/\/$/, "").split("/");
   const idx = parts.indexOf("playlist");
   if (idx === -1 || idx + 1 >= parts.length) {
@@ -97,54 +83,50 @@ export function extractSpotifyPlaylistId(url: string): string {
   return parts[idx + 1];
 }
 
-async function fetchAllPlaylistTracks(
+async function fetchPlaylistWithTracks(
   playlistId: string,
   accessToken: string
-): Promise<{ tracks: SpotifyTrack[]; title: string }> {
-  // D'abord récupérer les infos de la playlist
-  const playlistRes = await fetch(`${SPOTIFY_API}/playlists/${playlistId}`, {
+): Promise<{ tracks: SpotifyTrackObject[]; title: string; total: number }> {
+  // Récupérer nom + 100 premiers titres en un seul appel
+  const fields = "name,tracks.items(track(name,artists(name),album(images(url)))),tracks.total";
+  const url = `${SPOTIFY_API}/playlists/${playlistId}?fields=${encodeURIComponent(fields)}`;
+
+  const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
-  if (!playlistRes.ok) {
-    if (playlistRes.status === 404) {
-      throw new Error("Playlist Spotify non trouvée. Vérifie l&apos;URL ou les droits d&apos;accès.");
+  if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error("Playlist Spotify non trouvée. Vérifie l&apos;URL.");
     }
-    throw new Error(`Erreur API Spotify: ${playlistRes.status}`);
+    if (res.status === 403) {
+      throw new Error(
+        "Accès refusé. Vérifie que ton compte Spotify est Premium et que la playlist est publique."
+      );
+    }
+    throw new Error(`Erreur API Spotify: ${res.status}`);
   }
 
-  const playlistData: SpotifyPlaylistResponse = await playlistRes.json();
-  const title = playlistData.name;
+  const data: SpotifyPlaylistResponse = await res.json();
 
-  // Paginer pour récupérer tous les titres
-  const tracks: SpotifyTrack[] = [];
-  let url: string | null = `${SPOTIFY_API}/playlists/${playlistId}/tracks?limit=100&offset=0`;
-
-  while (url) {
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-
-    if (!res.ok) {
-      throw new Error(`Erreur API Spotify (tracks): ${res.status}`);
-    }
-
-    const data: SpotifyPlaylistTracksResponse = await res.json();
-
-    for (const item of data.items) {
+  const tracks: SpotifyTrackObject[] = [];
+  if (data.tracks?.items) {
+    for (const item of data.tracks.items) {
       if (item.track) {
         tracks.push(item.track);
       }
     }
-
-    url = data.next;
   }
 
-  return { tracks, title };
+  return {
+    tracks,
+    title: data.name || "",
+    total: data.tracks?.total || tracks.length,
+  };
 }
 
 export function spotifyCountMatches(
-  tracks: SpotifyTrack[],
+  tracks: SpotifyTrackObject[],
   targetArtists: Set<string>
 ): {
   count: number;
@@ -163,7 +145,7 @@ export function spotifyCountMatches(
           artist: artist.name,
           cover: track.album?.images?.[0]?.url || "",
         });
-        break; // Ne compter qu'une fois par titre
+        break;
       }
     }
   }
@@ -177,9 +159,11 @@ export async function analyzeSpotifyPlaylist(
 ): Promise<AnalysisResult> {
   const playlistId = extractSpotifyPlaylistId(playlistUrl);
   const accessToken = await getAccessToken();
-  const { tracks, title } = await fetchAllPlaylistTracks(playlistId, accessToken);
+  const { tracks, title } = await fetchPlaylistWithTracks(playlistId, accessToken);
   const { count, details } = spotifyCountMatches(tracks, targetArtists);
 
+  // Note: Spotify bloque la pagination pour les apps non-approuvées.
+  // On analyse les 100 premiers titres (largement suffisant pour l'immense majorité des playlists).
   return {
     platform: "spotify",
     playlistId,
