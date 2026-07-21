@@ -1,186 +1,80 @@
-# Deezer Problematic
+# Problematic.fyi 🎵
 
-Analysez les playlists Deezer et comptabilisez les titres des artistes spécifiés.
-
-## Description
-
-Cet outil permet de:
-1. Accéder à une playlist Deezer par URL (publique ou privée)
-2. Lire une liste d'artistes depuis un fichier CSV
-3. Compter combien de titres de la playlist sont faits par ces artistes
+Analyse tes playlists Deezer et découvre le pourcentage de titres faits par des artistes « problématiques ».
 
 ## Fonctionnalités
 
-- ✅ Support des playlists **publiques** (pas d'authentification nécessaire)
-- ✅ Support des playlists **privées** (avec authentification OAuth Deezer)
-- ✅ Gestion automatique du token OAuth avec cache
-- ✅ API Deezer officielle avec gestion des résultats paginés
-- ✅ Comparaison des artistes insensible à la casse
-- ✅ Statistiques détaillées et affichage des titres trouvés
+- ✅ Analyse de playlists Deezer (publiques et privées)
+- ✅ Interface web propre avec sélecteur Deezer / Spotify
+- ✅ Barre de progression visuelle et détail des titres
+- ✅ Interface d'administration pour gérer la liste d'artistes
+- ✅ Stockage persistant via Vercel Blob
+- 🟢 Spotify bientôt disponible
 
-## Installation
+## Déploiement Vercel
 
-### 1. Cloner le repository
+### 1. Cloner le repo
 
 ```bash
 git clone https://github.com/gzm-lab/deezer-problematic.git
 cd deezer-problematic
 ```
 
-### 2. Installer les dépendances
+### 2. Installer
 
 ```bash
-pip install -r requirements.txt
+npm install
 ```
 
-### 3. Configuration OAuth (optionnel, pour les playlists privées)
+### 3. Variables d'environnement
 
-Pour accéder aux playlists privées, créez une application Deezer sur https://developers.deezer.com
-
-Créez un fichier `.env` à la racine du projet:
+Créer un fichier `.env.local` :
 
 ```env
-application_id=YOUR_APP_ID
-secret_key=YOUR_SECRET_KEY
-application_domain=http://localhost:8080/
+ADMIN_PASSWORD=ton_mot_de_passe_admin
 ```
 
-## Utilisation
+Sur Vercel, ajouter ces variables dans les paramètres du projet :
 
-### Playlist publique (pas d'auth nécessaire)
+- `ADMIN_PASSWORD` — mot de passe pour l'interface admin
+- `BLOB_READ_WRITE_TOKEN` — configuré automatiquement si tu actives Vercel Blob
+
+### 4. Lancer en dev
 
 ```bash
-python main.py "https://www.deezer.com/playlist/1234567890" artists.csv
+npm run dev
 ```
 
-### Playlist privée (authentification automatique)
+### 5. Déployer
 
-```bash
-python main.py "https://www.deezer.com/playlist/1234567890" artists.csv
-```
+Connecte le repo GitHub à Vercel et push sur `main`. Le déploiement est automatique.
 
-La première fois, le navigateur s'ouvrira pour autoriser l'application. Le token sera mis en cache pour les appels suivants.
+## Variables d'environnement Vercel
 
-### Forcer une nouvelle authentification
+| Variable | Description |
+|---|---|
+| `ADMIN_PASSWORD` | Mot de passe pour accéder à `/admin` |
+| `BLOB_READ_WRITE_TOKEN` | Token Vercel Blob (auto-généré si tu actives Blob Storage) |
+| `DEEZER_ACCESS_TOKEN` | Token OAuth Deezer pour les playlists privées (optionnel) |
 
-```bash
-python main.py "https://www.deezer.com/playlist/1234567890" artists.csv --force-auth
-```
-
-### Ne pas ouvrir le navigateur
-
-```bash
-python main.py "https://www.deezer.com/playlist/1234567890" artists.csv --no-open
-```
-
-## Format du fichier CSV
-
-Le fichier CSV doit avoir les noms d'artistes dans la **première colonne**:
-
-```csv
-artiste
-The Beatles
-Pink Floyd
-Led Zeppelin
-David Bowie
-```
-
-Ou sans en-tête:
-
-```csv
-The Beatles
-Pink Floyd
-Led Zeppelin
-```
-
-## Exemple de sortie
+## Structure
 
 ```
-Chargement des artistes depuis le CSV: artists.csv
-✓ 5 artistes uniques chargés
-
-Récupération de la playlist: https://www.deezer.com/playlist/1234567890
-✓ ID de la playlist: 1234567890
-✓ 50 titres récupérés
-
-============================================================
-RÉSULTATS:
-  Nombre total de titres: 50
-  Titres des artistes spécifiés: 12
-  Pourcentage: 24.0%
-============================================================
-
-Titres trouvés:
-  - Bohemian Rhapsody — Queen
-  - Stairway to Heaven — Led Zeppelin
-  - Hotel California — Eagles
-  - Imagine — John Lennon
-
-✓ 12 titres correspondants trouvés
+src/
+  app/
+    page.tsx           → Page d'accueil (analyse de playlist)
+    admin/page.tsx     → Interface admin (gestion des artistes)
+    api/
+      analyze/route.ts → POST - Analyse une playlist
+      artists/route.ts → GET/POST/DELETE - CRUD artistes
+      admin/auth/route.ts → POST - Vérification mot de passe admin
+  lib/
+    deezer.ts          → Logique API Deezer
+    blob.ts            → Stockage Vercel Blob
+    types.ts           → Types TypeScript
+python/                → Scripts Python originaux (CLI)
 ```
-
-## Authentification OAuth
-
-### Configuration de l'application Deezer
-
-1. Allez sur https://developers.deezer.com
-2. Connectez-vous ou créez un compte
-3. Créez une nouvelle application
-4. Obtenez votre:
-   - Application ID
-   - Secret Key
-5. Configurez le Redirect URI (par défaut: `http://localhost:8080/`)
-
-### Flux d'authentification
-
-1. La première fois que vous accédez à une playlist privée, le script:
-   - Démarre un serveur HTTP local
-   - Ouvre votre navigateur pour autoriser l'application
-   - Reçoit le code d'autorisation
-   - Échange le code contre un access token
-   - Sauvegarde le token dans `.deezer_token.json`
-
-2. Les appels suivants utilisent le token en cache automatiquement
-
-3. Vous pouvez aussi définir `DEEZER_ACCESS_TOKEN` comme variable d'environnement
-
-## Structure du projet
-
-```
-.
-├── main.py              # Point d'entrée principal
-├── deezer_api.py        # Module API Deezer
-├── deezer_auth.py       # Gestion de l'authentification OAuth
-├── csv_reader.py        # Lecteur CSV
-├── requirements.txt     # Dépendances Python
-├── example_artists.csv  # Exemple de fichier CSV
-└── README.md           # Cette documentation
-```
-
-## Dépendances
-
-- Python 3.7+
-- requests (requêtes HTTP)
-- pandas (traitement CSV)
-- python-dotenv (chargement des variables d'environnement)
-
-## Gestion des erreurs
-
-Le script gère les cas suivants:
-- ✓ Playlists inexistantes ou supprimées
-- ✓ Playlists privées sans accès
-- ✓ Fichiers CSV invalides ou vides
-- ✓ Problèmes de connexion réseau
-- ✓ Timeouts d'authentification OAuth
 
 ## Licence
 
 MIT
-
-## Auteur
-
-Créé par gzm-lab
-
-## Remerciements
-
-Inspiration du projet original https://github.com/gzm-lab/deezer-playlist
