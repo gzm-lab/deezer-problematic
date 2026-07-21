@@ -87,8 +87,10 @@ async function fetchPlaylistWithTracks(
   playlistId: string,
   accessToken: string
 ): Promise<{ tracks: SpotifyTrackObject[]; title: string; total: number }> {
-  // Récupérer nom + premiers titres en un seul appel
-  const url = `${SPOTIFY_API}/playlists/${playlistId}?market=FR`;
+  // Récupérer nom + titres en un seul appel
+  // Spotify ne retourne pas les tracks par défaut, il faut le demander via fields
+  const fields = "name,tracks.items(track(name,album(images(url)),artists(name)))";
+  const url = `${SPOTIFY_API}/playlists/${playlistId}?market=FR&fields=${encodeURIComponent(fields)}`;
 
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
