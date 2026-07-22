@@ -102,64 +102,76 @@ async function fetchAllPlaylistTracks(
   playlistId: string,
   accessToken: string
 ): Promise<{ tracks: SpotifyTrackObject[]; title: string }> {
-  // Utiliser additional_types=track pour obtenir les pistes dans le endpoint playlist
-  let url: string | null =
-    `${SPOTIFY_API}/playlists/${playlistId}?additional_types=track&market=FR`;
+  const firstUrl = `${SPOTIFY_API}/playlists/${playlistId}?additional_types=track&market=FR`;
+
+  // Page 1 : récupère le nom + première page + total
+  const firstRes: Response = await fetch(firstUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!firstRes.ok) {
+    if (firstRes.status === 404) {
+      throw new Error("Playlist Spotify non trouvée. Vérifie l&apos;URL.");
+    }
+    if (firstRes.status === 403) {
+      throw new Error("Accès refusé. La playlist est peut-être privée.");
+    }
+    throw new Error(`Erreur API Spotify: ${firstRes.status}`);
+  }
+
+  const firstData = await firstRes.json() as Record<string, unknown>;
+  const title = (firstData.name as string) || "";
+  const paging = firstData.items as SpotifyPlaylistItems;
+  const total = paging?.total || 0;
 
   const tracks: SpotifyTrackObject[] = [];
-  let title = "";
-
-  while (url) {
-    const res: Response = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-
-    if (!res.ok) {
-      if (res.status === 404) {
-        throw new Error("Playlist Spotify non trouvée. Vérifie l&apos;URL.");
+  if (paging?.items) {
+    for (const item of paging.items) {
+      if (item.item && item.item.type === "track") {
+        tracks.push(item.item);
       }
-      if (res.status === 403) {
-        throw new Error(
-          "Accès refusé. La playlist est peut-être privée et tu n&apos;en es pas le propriétaire."
-        );
-      }
-      throw new Error(`Erreur API Spotify: ${res.status}`);
+    }
+  }
+
+  // Pages restantes : les récupérer en parallèle par lots de 5
+  if (total > 100 && paging.next) {
+    const totalPages = Math.ceil(total / 100);
+    const remainingPages = totalPages - 1;
+
+    // Générer toutes les URLs de pagination
+    const urls: string[] = [];
+    for (let i = 1; i <= remainingPages; i++) {
+      urls.push(
+        `${SPOTIFY_API}/playlists/${playlistId}/items?offset=${i * 100}&limit=100&market=FR&additional_types=track`
+      );
     }
 
-    const data = await res.json() as Record<string, unknown>;
+    // Limiter à 50 pages max (5000 tracks) pour éviter timeout
+    const pagesToFetch = urls.slice(0, 50);
 
-    if (data.name && !title) {
-      title = data.name as string;
-    }
+    // Fetch par lots de 5 en parallèle
+    const batchSize = 5;
+    for (let b = 0; b < pagesToFetch.length; b += batchSize) {
+      const batch = pagesToFetch.slice(b, b + batchSize);
+      const results = await Promise.allSettled(
+        batch.map((url) =>
+          fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
+            .then((r) => (r.ok ? r.json() : null))
+        )
+      );
 
-    // Avec additional_types=track, les pistes sont dans data.items
-    // Page 1: data.items = { items: [...], next: "...", total: N }
-    // Page 2+: data.items = [ { item: {...} }, ... ]  (tableau direct)
-    const rawItems = data.items;
-    if (rawItems) {
-      if (Array.isArray(rawItems)) {
-        // Page 2+ : réponse du endpoint /items (tableau dans .items, pagination dans .next)
-        const pagingData = data as unknown as { items: SpotifyPlaylistItem[]; next: string | null };
-        for (const playlistItem of pagingData.items) {
-          if (playlistItem.item && playlistItem.item.type === "track") {
-            tracks.push(playlistItem.item);
-          }
-        }
-        url = pagingData.next || null;
-      } else {
-        // Page 1 : objet paging
-        const paging = rawItems as SpotifyPlaylistItems;
-        if (paging.items) {
-          for (const playlistItem of paging.items) {
-            if (playlistItem.item && playlistItem.item.type === "track") {
-              tracks.push(playlistItem.item);
+      for (const result of results) {
+        if (result.status === "fulfilled" && result.value) {
+          const pageData = result.value as { items: SpotifyPlaylistItem[] };
+          if (pageData.items) {
+            for (const item of pageData.items) {
+              if (item.item && item.item.type === "track") {
+                tracks.push(item.item);
+              }
             }
           }
         }
-        url = paging.next || null;
       }
-    } else {
-      url = null;
     }
   }
 
