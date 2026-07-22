@@ -1,6 +1,24 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { ArtistLevel } from "@/lib/types";
+
+const LEVELS: ArtistLevel[] = ["plaintes", "condamné", "non lieu"];
+const LEVEL_LABELS: Record<ArtistLevel, string> = {
+  plaintes: "⚠️ Plaintes",
+  condamné: "🚫 Condamné",
+  "non lieu": "✅ Non-lieu",
+};
+const LEVEL_COLORS: Record<ArtistLevel, string> = {
+  plaintes: "bg-warning-light text-warning border border-warning/20",
+  condamné: "bg-danger-light text-danger border border-danger/20",
+  "non lieu": "bg-success-light text-success border border-success/20",
+};
+
+interface ArtistItem {
+  name: string;
+  level: ArtistLevel;
+}
 
 export default function AdminPage() {
   const [authenticated, setAuthenticated] = useState(false);
@@ -8,9 +26,10 @@ export default function AdminPage() {
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
 
-  const [artists, setArtists] = useState<string[]>([]);
+  const [artists, setArtists] = useState<ArtistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [newArtist, setNewArtist] = useState("");
+  const [newLevel, setNewLevel] = useState<ArtistLevel>("condamné");
   const [adding, setAdding] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
@@ -78,14 +97,18 @@ export default function AdminPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ name: newArtist.trim() }),
+        body: JSON.stringify({ name: newArtist.trim(), level: newLevel }),
       });
       const data = await res.json();
 
       if (res.ok) {
-        setArtists((prev) => [...prev, data.name].sort());
+        setArtists((prev) =>
+          [...prev, { name: data.name, level: data.level }].sort((a, b) =>
+            a.name.localeCompare(b.name)
+          )
+        );
         setNewArtist("");
-        setFeedback({ type: "success", msg: `${data.name} ajouté !` });
+        setFeedback({ type: "success", msg: `${data.name} ajouté (${LEVEL_LABELS[data.level as ArtistLevel] || data.level})` });
       } else {
         setFeedback({ type: "error", msg: data.error || "Erreur" });
       }
@@ -93,6 +116,31 @@ export default function AdminPage() {
       setFeedback({ type: "error", msg: "Erreur réseau" });
     } finally {
       setAdding(false);
+    }
+  }
+
+  async function handleLevelChange(name: string, level: ArtistLevel) {
+    try {
+      const res = await fetch("/api/artists", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name, level }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setArtists((prev) =>
+          prev.map((a) => (a.name === name ? { ...a, level } : a))
+        );
+        setFeedback({ type: "success", msg: `${name} → ${LEVEL_LABELS[level]}` });
+      } else {
+        setFeedback({ type: "error", msg: data.error || "Erreur" });
+      }
+    } catch {
+      setFeedback({ type: "error", msg: "Erreur réseau" });
     }
   }
 
@@ -111,7 +159,7 @@ export default function AdminPage() {
       const data = await res.json();
 
       if (res.ok) {
-        setArtists((prev) => prev.filter((a) => a !== name));
+        setArtists((prev) => prev.filter((a) => a.name !== name));
         setFeedback({ type: "success", msg: `« ${name} » supprimé` });
       } else {
         setFeedback({ type: "error", msg: data.error || "Erreur" });
@@ -139,7 +187,7 @@ export default function AdminPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-5 py-3.5 rounded-[var(--radius-md)] bg-surface border border-border text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all text-sm"
+              className="w-full px-5 py-3.5 rounded-[var(--radius-md)] bg-surface border border-border text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all text-base"
               placeholder="Mot de passe admin"
               autoFocus
             />
@@ -157,14 +205,21 @@ export default function AdminPage() {
     );
   }
 
-  // Admin panel
+  // Stats
+  const stats = {
+    total: artists.length,
+    condamné: artists.filter((a) => a.level === "condamné").length,
+    plaintes: artists.filter((a) => a.level === "plaintes").length,
+    nonlieu: artists.filter((a) => a.level === "non lieu").length,
+  };
+
   return (
-    <div className="max-w-2xl mx-auto px-6 py-12">
-      <div className="flex items-center justify-between mb-10">
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Gestion des artistes</h1>
           <p className="text-sm text-muted mt-1">
-            {artists.length} artiste{artists.length > 1 ? "s" : ""} dans la liste
+            {stats.total} artiste{stats.total > 1 ? "s" : ""} · {stats.condamné} condamné, {stats.plaintes} plaintes, {stats.nonlieu} non-lieu
           </p>
         </div>
         <button
@@ -188,63 +243,36 @@ export default function AdminPage() {
         </div>
       )}
 
-      <form onSubmit={handleAdd} className="flex gap-3 mb-10">
+      {/* Ajouter un artiste */}
+      <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-8 bg-surface rounded-[var(--radius-lg)] border border-border p-4">
         <input
           type="text"
           value={newArtist}
           onChange={(e) => setNewArtist(e.target.value)}
-          placeholder="Nom de l&apos;artiste à ajouter..."
-          className="flex-1 px-5 py-3.5 rounded-[var(--radius-md)] bg-surface border border-border text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all text-sm"
+          placeholder="Nom de l&apos;artiste..."
+          className="flex-1 px-4 py-2.5 rounded-[var(--radius-sm)] bg-bg-warm border border-border text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 text-sm"
         />
-        <button
-          type="submit"
-          disabled={adding || !newArtist.trim()}
-          className="px-6 py-3.5 rounded-[var(--radius-md)] bg-accent text-white font-semibold text-sm hover:bg-accent-hover disabled:opacity-40 transition-all shadow-lg shadow-accent/15"
-        >
-          {adding ? "..." : "Ajouter"}
-        </button>
-      </form>
-
-      <details className="mb-10 group">
-        <summary className="text-sm text-muted cursor-pointer hover:text-foreground transition-colors font-medium">
-          📋 Importer en masse
-        </summary>
-        <div className="mt-4 p-5 rounded-[var(--radius-md)] bg-surface border border-border">
-          <textarea
-            id="bulkImport"
-            className="w-full px-4 py-3 rounded-[var(--radius-sm)] bg-bg-warm border border-border text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 text-sm min-h-[100px] resize-y"
-            placeholder="Artiste 1&#10;Artiste 2&#10;Artiste 3"
-          />
-          <button
-            onClick={async () => {
-              const textarea = document.getElementById("bulkImport") as HTMLTextAreaElement;
-              if (!textarea) return;
-              const lines = textarea.value.split("\n").filter((l) => l.trim());
-              if (lines.length === 0) return;
-              let added = 0;
-              for (const line of lines) {
-                try {
-                  const res = await fetch("/api/artists", {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({ name: line.trim() }),
-                  });
-                  if (res.ok) added++;
-                } catch { /* skip */ }
-              }
-              textarea.value = "";
-              setFeedback({ type: "success", msg: `${added} artiste(s) ajouté(s) !` });
-              fetchArtists();
-            }}
-            className="mt-3 px-5 py-2.5 rounded-[var(--radius-sm)] bg-accent-light text-accent text-sm font-semibold hover:bg-accent/15 transition-colors"
+        <div className="flex gap-2">
+          <select
+            value={newLevel}
+            onChange={(e) => setNewLevel(e.target.value as ArtistLevel)}
+            className="px-3 py-2.5 rounded-[var(--radius-sm)] bg-bg-warm border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
           >
-            Tout importer
+            {LEVELS.map((l) => (
+              <option key={l} value={l}>
+                {LEVEL_LABELS[l]}
+              </option>
+            ))}
+          </select>
+          <button
+            type="submit"
+            disabled={adding || !newArtist.trim()}
+            className="px-5 py-2.5 rounded-[var(--radius-sm)] bg-accent text-white font-semibold text-sm hover:bg-accent-hover disabled:opacity-40 transition-all"
+          >
+            {adding ? "..." : "Ajouter"}
           </button>
         </div>
-      </details>
+      </form>
 
       {loading ? (
         <div className="text-center py-16 text-muted text-sm">Chargement...</div>
@@ -258,18 +286,38 @@ export default function AdminPage() {
         <div className="bg-surface rounded-[var(--radius-lg)] border border-border overflow-hidden">
           {artists.map((artist, i) => (
             <div
-              key={artist}
-              className={`flex items-center justify-between p-4 hover:bg-bg-warm transition-colors group ${
+              key={artist.name}
+              className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 sm:p-4 hover:bg-bg-warm transition-colors group ${
                 i < artists.length - 1 ? "border-b border-border" : ""
               }`}
             >
-              <span className="text-sm font-medium text-foreground capitalize">{artist}</span>
-              <button
-                onClick={() => handleDelete(artist)}
-                className="px-3 py-1.5 rounded-[var(--radius-sm)] text-xs font-medium text-muted hover:text-danger hover:bg-danger-light opacity-0 group-hover:opacity-100 transition-all"
-              >
-                Supprimer
-              </button>
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="text-sm font-medium text-foreground capitalize truncate">
+                  {artist.name}
+                </span>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${LEVEL_COLORS[artist.level]}`}>
+                  {LEVEL_LABELS[artist.level]}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  value={artist.level}
+                  onChange={(e) => handleLevelChange(artist.name, e.target.value as ArtistLevel)}
+                  className="px-2 py-1.5 rounded-[var(--radius-sm)] bg-bg-warm border border-border text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-accent/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  {LEVELS.map((l) => (
+                    <option key={l} value={l}>
+                      {LEVEL_LABELS[l]}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => handleDelete(artist.name)}
+                  className="px-2 py-1.5 rounded-[var(--radius-sm)] text-xs font-medium text-muted hover:text-danger hover:bg-danger-light opacity-0 group-hover:opacity-100 transition-all"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
           ))}
         </div>

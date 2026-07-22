@@ -9,6 +9,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [condamneOnly, setCondamneOnly] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   function handleClear() {
@@ -30,7 +31,11 @@ export default function Home() {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform, url: url.trim() }),
+        body: JSON.stringify({
+          platform,
+          url: url.trim(),
+          level: condamneOnly ? "condamné" : undefined,
+        }),
       });
 
       const data = await res.json();
@@ -98,6 +103,24 @@ export default function Home() {
         >
           🟢 Spotify
         </button>
+      </div>
+
+      {/* Filter toggle */}
+      <div className="flex justify-center mb-5 sm:mb-6">
+        <label className="flex items-center gap-2.5 px-4 py-2 rounded-[var(--radius-md)] bg-surface border border-border cursor-pointer hover:border-accent/30 transition-all select-none">
+          <div className={`relative w-9 h-5 rounded-full transition-colors ${condamneOnly ? "bg-accent" : "bg-border"}`}>
+            <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${condamneOnly ? "translate-x-4" : "translate-x-0.5"}`} />
+          </div>
+          <span className="text-xs sm:text-sm font-medium text-foreground">
+            Condamné uniquement
+          </span>
+          <input
+            type="checkbox"
+            checked={condamneOnly}
+            onChange={(e) => setCondamneOnly(e.target.checked)}
+            className="sr-only"
+          />
+        </label>
       </div>
 
       {/* Input form */}

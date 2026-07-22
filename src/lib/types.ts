@@ -17,6 +17,8 @@ export interface DeezerTrack {
   duration: number;
 }
 
+export type ArtistLevel = "plaintes" | "condamné" | "non lieu";
+
 export interface AnalysisResult {
   platform: "deezer" | "spotify";
   playlistId: string;
@@ -29,9 +31,11 @@ export interface AnalysisResult {
     artist: string;
     cover: string;
   }[];
+  level?: ArtistLevel; // Si filtré par niveau
 }
 
 export interface ArtistEntry {
   name: string;
+  level: ArtistLevel;
   addedAt: string;
 }
