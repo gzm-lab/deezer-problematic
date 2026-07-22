@@ -22,7 +22,9 @@ interface DeezerTracksResponse {
 }
 
 export function extractPlaylistId(url: string): string {
-  const parts = url.trim().replace(/\/$/, "").split("/");
+  // Nettoyer : enlever query params et trailing slash
+  const cleaned = url.trim().split("?")[0].replace(/\/$/, "");
+  const parts = cleaned.split("/");
   const idx = parts.indexOf("playlist");
   if (idx === -1 || idx + 1 >= parts.length) {
     throw new Error("URL Deezer invalide : impossible de trouver l&apos;ID de la playlist");
