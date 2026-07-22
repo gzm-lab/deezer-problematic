@@ -45,7 +45,6 @@ export default function RootLayout({
             <nav className="flex gap-4 sm:gap-5 text-xs sm:text-sm text-muted font-medium">
               <a href="/" className="hover:text-foreground transition-colors">Accueil</a>
               <a href="/artistes" className="hover:text-foreground transition-colors">Artistes</a>
-              <a href="/admin" className="hover:text-foreground transition-colors">Admin</a>
             </nav>
           </div>
         </header>
