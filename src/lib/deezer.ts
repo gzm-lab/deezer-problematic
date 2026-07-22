@@ -72,7 +72,7 @@ export async function fetchPlaylistTracks(playlistId: string, accessToken?: stri
 
   // Étape 2: récupérer TOUS les titres via le endpoint /tracks avec pagination
   const tracks: DeezerTrack[] = [];
-  const limit = 1000;
+  const limit = 2000; // Deezer supporte jusqu'à 2000 par page
   let index = 0;
 
   while (true) {
@@ -95,6 +95,7 @@ export async function fetchPlaylistTracks(playlistId: string, accessToken?: stri
       tracks.push(...data.data);
     }
 
+    // Suivre la pagination via next s'il existe
     if (data.next) {
       const nextUrl = new URL(data.next);
       const nextIndex = nextUrl.searchParams.get("index");
@@ -104,8 +105,8 @@ export async function fetchPlaylistTracks(playlistId: string, accessToken?: stri
       }
     }
 
-    if (!data.data || data.data.length < limit) break;
-    index += limit;
+    // Plus de pages
+    break;
   }
 
   return { tracks, title: playlistTitle };
