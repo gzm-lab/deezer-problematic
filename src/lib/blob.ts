@@ -151,6 +151,7 @@ export async function updateArtistLevel(
     await put(blobKey(trimmed), JSON.stringify(entry), {
       access: "private",
       contentType: "application/json",
+      allowOverwrite: true,
     });
     return { success: true };
   } catch (e) {
