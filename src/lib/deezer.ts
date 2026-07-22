@@ -1,10 +1,9 @@
-// Logique API Deezer - port du code Python existant
+// Logique API Deezer - utilise l'endpoint /tracks pour éviter la limite 393
 
 import { DeezerTrack, AnalysisResult } from "./types";
 
 const DEEZER_API = "https://api.deezer.com";
 
-// Types internes pour les réponses de l'API Deezer
 interface DeezerPlaylistResponse {
   id: number;
   title: string;
@@ -13,6 +12,13 @@ interface DeezerPlaylistResponse {
     data: DeezerTrack[];
     next?: string;
   };
+}
+
+interface DeezerTracksResponse {
+  data?: DeezerTrack[];
+  next?: string;
+  total?: number;
+  error?: unknown;
 }
 
 export function extractPlaylistId(url: string): string {
@@ -25,10 +31,7 @@ export function extractPlaylistId(url: string): string {
 }
 
 async function resolveShortLink(url: string): Promise<string> {
-  // Les liens courts Deezer (link.deezer.com) redirigent vers l'URL canonique
-  // Il faut suivre toute la chaîne de redirections (pas juste la première)
   if (url.includes("link.deezer.com") || url.includes("dzr.page.link")) {
-    // Follow toutes les redirections et récupère l'URL finale
     const res = await fetch(url, { method: "HEAD", redirect: "follow" });
     const finalUrl = res.url;
     if (finalUrl && !finalUrl.includes("link.deezer.com")) {
@@ -38,10 +41,6 @@ async function resolveShortLink(url: string): Promise<string> {
   return url;
 }
 
-/**
- * Extrait l'ID d'une playlist Deezer depuis n'importe quel format d'URL.
- * Supporte les URLs canoniques, les liens courts, et les URLs avec query params.
- */
 async function resolvePlaylistId(playlistUrl: string): Promise<string> {
   const resolved = await resolveShortLink(playlistUrl);
   return extractPlaylistId(resolved);
@@ -54,50 +53,62 @@ export async function fetchPlaylistTracks(playlistId: string, accessToken?: stri
   const params = new URLSearchParams();
   if (accessToken) params.set("access_token", accessToken);
 
-  let url: string | null = `${DEEZER_API}/playlist/${playlistId}?${params}`;
-  const tracks: DeezerTrack[] = [];
-  let playlistTitle = "";
-
-  try {
-    while (url) {
-      const res = await fetch(url);
-      if (!res.ok) {
-        if (res.status === 404) {
-          throw new Error("Playlist non trouvée ou privée. Essayez avec un token d&apos;accès.");
-        }
-        throw new Error(`Erreur API Deezer: ${res.status} ${res.statusText}`);
-      }
-
-      const data: DeezerPlaylistResponse = await res.json();
-
-      if (data.error) {
-        const msg = typeof data.error === "object" && data.error !== null && "message" in data.error
-          ? (data.error as { message: string }).message
-          : String(data.error);
-        throw new Error(`Erreur API Deezer: ${msg}`);
-      }
-
-      if (data.title && !playlistTitle) {
-        playlistTitle = data.title;
-      }
-
-      if (data.tracks) {
-        if (data.tracks.data) {
-          tracks.push(...data.tracks.data);
-        }
-        url = data.tracks.next || null;
-      } else {
-        break;
-      }
+  // Étape 1: récupérer le nom de la playlist
+  const infoRes = await fetch(`${DEEZER_API}/playlist/${playlistId}?${params}`);
+  if (!infoRes.ok) {
+    if (infoRes.status === 404) {
+      throw new Error("Playlist non trouvée ou privée. Essayez avec un token d&apos;accès.");
     }
-
-    return { tracks, title: playlistTitle };
-  } catch (e) {
-    if (e instanceof Error && e.message.startsWith("Erreur API Deezer")) {
-      throw e;
-    }
-    throw new Error(`Impossible de récupérer la playlist ${playlistId}: ${e instanceof Error ? e.message : String(e)}`);
+    throw new Error(`Erreur API Deezer: ${infoRes.status}`);
   }
+  const infoData: DeezerPlaylistResponse = await infoRes.json();
+  if (infoData.error) {
+    const msg = typeof infoData.error === "object" && infoData.error !== null && "message" in infoData.error
+      ? (infoData.error as { message: string }).message
+      : String(infoData.error);
+    throw new Error(`Erreur API Deezer: ${msg}`);
+  }
+  const playlistTitle = infoData.title || "";
+
+  // Étape 2: récupérer TOUS les titres via le endpoint /tracks avec pagination
+  const tracks: DeezerTrack[] = [];
+  const limit = 1000;
+  let index = 0;
+
+  while (true) {
+    const trackParams = new URLSearchParams(params);
+    trackParams.set("limit", String(limit));
+    trackParams.set("index", String(index));
+
+    const trackUrl = `${DEEZER_API}/playlist/${playlistId}/tracks?${trackParams}`;
+    const res = await fetch(trackUrl);
+    if (!res.ok) {
+      throw new Error(`Erreur API Deezer tracks: ${res.status}`);
+    }
+
+    const data: DeezerTracksResponse = await res.json();
+    if (data.error) {
+      throw new Error(`Erreur API Deezer: ${JSON.stringify(data.error)}`);
+    }
+
+    if (data.data) {
+      tracks.push(...data.data);
+    }
+
+    if (data.next) {
+      const nextUrl = new URL(data.next);
+      const nextIndex = nextUrl.searchParams.get("index");
+      if (nextIndex) {
+        index = parseInt(nextIndex, 10);
+        continue;
+      }
+    }
+
+    if (!data.data || data.data.length < limit) break;
+    index += limit;
+  }
+
+  return { tracks, title: playlistTitle };
 }
 
 export function countMatches(tracks: DeezerTrack[], targetArtists: Set<string>): {
