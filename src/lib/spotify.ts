@@ -149,14 +149,20 @@ async function fetchAllPlaylistTracks(
     // Limiter à 50 pages max (5000 tracks) pour éviter timeout
     const pagesToFetch = urls.slice(0, 50);
 
-    // Fetch par lots de 5 en parallèle
-    const batchSize = 5;
+    // Fetch par lots de 2 (Spotify rate-limite à ~4 req/s)
+    const batchSize = 2;
     for (let b = 0; b < pagesToFetch.length; b += batchSize) {
       const batch = pagesToFetch.slice(b, b + batchSize);
       const results = await Promise.allSettled(
         batch.map((url) =>
           fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
-            .then((r) => (r.ok ? r.json() : null))
+            .then(async (r) => {
+              if (!r.ok) {
+                console.error("Spotify page error:", r.status);
+                return null;
+              }
+              return r.json();
+            })
         )
       );
 
@@ -171,6 +177,11 @@ async function fetchAllPlaylistTracks(
             }
           }
         }
+      }
+
+      // Petit délai entre les lots pour respecter le rate limit
+      if (b + batchSize < pagesToFetch.length) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
       }
     }
   }
