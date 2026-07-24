@@ -16,6 +16,26 @@ export default function Home() {
   const [spotifyConnected, setSpotifyConnected] = useState(false);
   const [spotifyToken, setSpotifyToken] = useState<string | null>(null);
   const [spotifyError, setSpotifyError] = useState<string | null>(null);
+  const [spotifyPlaylists, setSpotifyPlaylists] = useState<{ id: string; name: string; image: string; tracks: number; owner: string }[]>([]);
+  const [selectedPlaylist, setSelectedPlaylist] = useState("");
+  const [playlistsLoading, setPlaylistsLoading] = useState(false);
+
+  async function fetchSpotifyPlaylists(token: string) {
+    setPlaylistsLoading(true);
+    try {
+      const res = await fetch(`/api/spotify/playlists?token=${encodeURIComponent(token)}`);
+      const data = await res.json();
+      if (data.playlists) {
+        setSpotifyPlaylists(data.playlists);
+      } else if (data.error) {
+        setSpotifyError(data.error);
+      }
+    } catch {
+      // silencieux
+    } finally {
+      setPlaylistsLoading(false);
+    }
+  }
 
   useEffect(() => {
     // Vérifier les params d'URL (retour du callback OAuth)
@@ -37,6 +57,7 @@ export default function Home() {
       sessionStorage.setItem("spotify_expires", String(expiresAt));
       setSpotifyToken(token);
       setSpotifyConnected(true);
+      fetchSpotifyPlaylists(token);
       // Nettoyer l'URL
       window.history.replaceState({}, "", "/");
       return;
@@ -51,6 +72,7 @@ export default function Home() {
       if (Date.now() < expiresAt) {
         setSpotifyToken(storedToken);
         setSpotifyConnected(true);
+        fetchSpotifyPlaylists(storedToken);
       } else {
         sessionStorage.removeItem("spotify_token");
         sessionStorage.removeItem("spotify_expires");
@@ -71,6 +93,7 @@ export default function Home() {
 
   function handleClear() {
     setUrl("");
+    setSelectedPlaylist("");
     setResult(null);
     setError(null);
     inputRef.current?.focus();
@@ -78,7 +101,15 @@ export default function Home() {
 
   async function handleAnalyze(e: React.FormEvent) {
     e.preventDefault();
-    if (!url.trim()) return;
+
+    // Pour Spotify connecté, utiliser la playlist sélectionnée
+    // Sinon, utiliser l'URL saisie
+    const playlistUrl =
+      platform === "spotify" && spotifyConnected && selectedPlaylist
+        ? `https://open.spotify.com/playlist/${selectedPlaylist}`
+        : url.trim();
+
+    if (!playlistUrl) return;
 
     setLoading(true);
     setError(null);
@@ -87,7 +118,7 @@ export default function Home() {
     try {
       const body: Record<string, unknown> = {
         platform,
-        url: url.trim(),
+        url: playlistUrl,
         level: condamneOnly ? "condamné" : undefined,
       };
 
@@ -222,45 +253,85 @@ export default function Home() {
 
       {/* Input form */}
       <form onSubmit={handleAnalyze} className="mb-8 sm:mb-10">
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-          <div className="flex-1 relative">
-            <input
-              ref={inputRef}
-              type="text"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder={
-                platform === "deezer"
-                  ? "Lien de la playlist Deezer..."
-                  : "Lien de la playlist Spotify..."
-              }
-              className="w-full px-4 sm:px-5 py-3 sm:py-3.5 pr-10 rounded-[var(--radius-md)] bg-surface border border-border text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all text-base"
-            />
-            {url && (
-              <button
-                type="button"
-                onClick={handleClear}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-border/50 text-muted hover:bg-border hover:text-foreground flex items-center justify-center transition-colors text-xs"
-                title="Effacer"
+        {platform === "spotify" && spotifyConnected ? (
+          /* Spotify connecté : sélecteur de playlists */
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <div className="flex-1 relative">
+              <select
+                value={selectedPlaylist}
+                onChange={(e) => setSelectedPlaylist(e.target.value)}
+                className="w-full px-4 sm:px-5 py-3 sm:py-3.5 rounded-[var(--radius-md)] bg-surface border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all text-base appearance-none"
               >
-                ✕
-              </button>
-            )}
+                <option value="">
+                  {playlistsLoading ? "Chargement des playlists..." : "Choisis une playlist..."}
+                </option>
+                {spotifyPlaylists.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.tracks} titres)
+                  </option>
+                ))}
+              </select>
+              {/* Chevron custom */}
+              <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <button
+              type="submit"
+              disabled={loading || !selectedPlaylist}
+              className="px-7 py-3 sm:py-3.5 rounded-[var(--radius-md)] bg-accent text-white font-semibold text-sm hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-accent/15 whitespace-nowrap"
+            >
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <Spinner /> Analyse...
+                </span>
+              ) : (
+                "Analyser"
+              )}
+            </button>
           </div>
-          <button
-            type="submit"
-            disabled={loading || !url.trim()}
-            className="px-7 py-3 sm:py-3.5 rounded-[var(--radius-md)] bg-accent text-white font-semibold text-sm hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-accent/15 whitespace-nowrap"
-          >
-            {loading ? (
-              <span className="flex items-center gap-2">
-                <Spinner /> Analyse...
-              </span>
-            ) : (
-              "Analyser"
-            )}
-          </button>
-        </div>
+        ) : (
+          /* Pas connecté ou Deezer : champ URL */
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <div className="flex-1 relative">
+              <input
+                ref={inputRef}
+                type="text"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder={
+                  platform === "deezer"
+                    ? "Lien de la playlist Deezer..."
+                    : "Lien de la playlist Spotify..."
+                }
+                className="w-full px-4 sm:px-5 py-3 sm:py-3.5 pr-10 rounded-[var(--radius-md)] bg-surface border border-border text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all text-base"
+              />
+              {url && (
+                <button
+                  type="button"
+                  onClick={handleClear}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-border/50 text-muted hover:bg-border hover:text-foreground flex items-center justify-center transition-colors text-xs"
+                  title="Effacer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <button
+              type="submit"
+              disabled={loading || !url.trim()}
+              className="px-7 py-3 sm:py-3.5 rounded-[var(--radius-md)] bg-accent text-white font-semibold text-sm hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-accent/15 whitespace-nowrap"
+            >
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <Spinner /> Analyse...
+                </span>
+              ) : (
+                "Analyser"
+              )}
+            </button>
+          </div>
+        )}
       </form>
 
       {/* Error */}
