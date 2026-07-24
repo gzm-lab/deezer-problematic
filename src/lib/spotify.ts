@@ -145,6 +145,7 @@ async function fetchAllPlaylistTracks(
 
   // Fallback: si additional_types=track n'a rien donné, essayer /tracks
   if (tracks.length === 0) {
+    console.log("[Spotify] additional_types=track returned 0 tracks, trying /tracks fallback");
     return fetchTracksFallback(playlistId, accessToken, title);
   }
 
@@ -165,8 +166,10 @@ async function fetchTracksFallback(
     });
 
     if (!res.ok) {
-      if (res.status === 403) break;
-      throw new Error(`Erreur Spotify: ${res.status}`);
+      if (res.status === 403) {
+        console.log("[Spotify] /tracks returned 403, stopping");
+        break;
+      }
     }
 
     const data = await res.json() as {
