@@ -219,10 +219,14 @@ export function spotifyCountMatches(
 
 export async function analyzeSpotifyPlaylist(
   playlistUrl: string,
-  targetArtists: Set<string>
+  targetArtists: Set<string>,
+  userAccessToken?: string
 ): Promise<AnalysisResult> {
   const playlistId = extractSpotifyPlaylistId(playlistUrl);
-  const accessToken = await getAccessToken();
+
+  // Token utilisateur prioritaire (OAuth), sinon token serveur
+  const accessToken = userAccessToken || await getAccessToken();
+
   const { tracks, title } = await fetchAllPlaylistTracks(playlistId, accessToken);
   const { count, details } = spotifyCountMatches(tracks, targetArtists);
 

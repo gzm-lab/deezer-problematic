@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     let result;
     if (platform === "spotify") {
-      result = await analyzeSpotifyPlaylist(url, artists);
+      result = await analyzeSpotifyPlaylist(url, artists, body.spotifyToken as string | undefined);
     } else {
       result = await analyzeDeezerPlaylist(url, artists, token);
     }
