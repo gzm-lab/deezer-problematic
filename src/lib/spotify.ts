@@ -1,6 +1,6 @@
-// Logique API Spotify - utilise le endpoint /tracks pour une fiabilité maximale
+// Logique API Spotify
 
-import { SpotifyTrackObject, AnalysisResult, ArtistLevel } from "./types";
+import { SpotifyTrackObject, AnalysisResult } from "./types";
 
 const SPOTIFY_API = "https://api.spotify.com";
 const SPOTIFY_ACCOUNTS = "https://accounts.spotify.com/api/token";
@@ -26,9 +26,7 @@ async function getAccessToken(): Promise<string> {
   const refreshToken = process.env.SPOTIFY_REFRESH_TOKEN;
 
   if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error(
-      "Spotify non configuré. Contacte l&apos;administrateur."
-    );
+    throw new Error("Spotify non configuré. Contacte l&apos;administrateur.");
   }
 
   const res = await fetch(SPOTIFY_ACCOUNTS, {
@@ -59,53 +57,116 @@ async function getAccessToken(): Promise<string> {
 // ---- Extraction ID ----
 
 export function extractSpotifyPlaylistId(url: string): string {
-  // Nettoie les query params
   const cleaned = url.trim().split("?")[0];
-
   const match = cleaned.match(/playlist\/([a-zA-Z0-9]+)/);
   if (match?.[1]) return match[1];
 
-  throw new Error(
-    "URL Spotify invalide : impossible de trouver l&apos;ID de la playlist"
-  );
+  throw new Error("URL Spotify invalide : impossible de trouver l&apos;ID de la playlist");
 }
 
 // ---- Récupération des titres ----
+
+function parseTrack(item: SpotifyPlaylistItem): SpotifyTrackObject | null {
+  // Format avec additional_types=track : item.item
+  if (item.item && item.item.type === "track") return item.item;
+  // Format standard /tracks : item.track
+  if (item.track) return item.track;
+  return null;
+}
 
 async function fetchAllPlaylistTracks(
   playlistId: string,
   accessToken: string
 ): Promise<{ tracks: SpotifyTrackObject[]; title: string }> {
-  // Étape 1 : récupérer le nom de la playlist
-  const infoRes = await fetch(`${SPOTIFY_API}/playlists/${playlistId}`, {
+  // Essayer d'abord avec additional_types=track (inclut les pistes dans items)
+  const playlistUrl = `${SPOTIFY_API}/playlists/${playlistId}?additional_types=track&market=FR`;
+
+  const firstRes = await fetch(playlistUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
-  if (!infoRes.ok) {
-    if (infoRes.status === 404) throw new Error("Playlist Spotify non trouvée.");
-    if (infoRes.status === 403) throw new Error("Accès refusé. Playlist privée ?");
-    throw new Error(`Erreur API Spotify: ${infoRes.status}`);
+  if (!firstRes.ok) {
+    if (firstRes.status === 404) throw new Error("Playlist Spotify non trouvée.");
+    if (firstRes.status === 403) throw new Error("Accès refusé. Playlist privée ?");
+    throw new Error(`Erreur API Spotify: ${firstRes.status}`);
   }
 
-  const infoData = await infoRes.json() as { name: string };
-  const title = infoData.name || "";
+  const firstData = await firstRes.json() as Record<string, unknown>;
+  const title = (firstData.name as string) || "";
 
-  // Étape 2 : récupérer tous les titres via /tracks (endpoint fiable)
+  const tracks: SpotifyTrackObject[] = [];
+
+  // Traiter les items de la première réponse
+  const paging = firstData.items as SpotifyPlaylistItems | undefined;
+  if (paging?.items) {
+    for (const item of paging.items) {
+      const track = parseTrack(item);
+      if (track) tracks.push(track);
+    }
+  }
+
+  // Pagination parallèle si dispo
+  if (paging && paging.total > 100 && paging.next) {
+    const remainingPages = Math.ceil(paging.total / 100) - 1;
+    const urls: string[] = [];
+    for (let i = 1; i <= Math.min(remainingPages, 49); i++) {
+      urls.push(
+        `${SPOTIFY_API}/playlists/${playlistId}/items?offset=${i * 100}&limit=100&market=FR&additional_types=track`
+      );
+    }
+
+    const batchSize = 2;
+    for (let b = 0; b < urls.length; b += batchSize) {
+      const batch = urls.slice(b, b + batchSize);
+      const results = await Promise.allSettled(
+        batch.map((url) =>
+          fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
+            .then(async (r) => (r.ok ? r.json() : null))
+        )
+      );
+
+      for (const result of results) {
+        if (result.status === "fulfilled" && result.value) {
+          const pageData = result.value as { items: SpotifyPlaylistItem[] };
+          if (pageData.items) {
+            for (const item of pageData.items) {
+              const track = parseTrack(item);
+              if (track) tracks.push(track);
+            }
+          }
+        }
+      }
+
+      if (b + batchSize < urls.length) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+    }
+  }
+
+  // Fallback: si additional_types=track n'a rien donné, essayer /tracks
+  if (tracks.length === 0) {
+    return fetchTracksFallback(playlistId, accessToken, title);
+  }
+
+  return { tracks, title };
+}
+
+async function fetchTracksFallback(
+  playlistId: string,
+  accessToken: string,
+  title: string
+): Promise<{ tracks: SpotifyTrackObject[]; title: string }> {
   const tracks: SpotifyTrackObject[] = [];
   let url: string | null = `${SPOTIFY_API}/playlists/${playlistId}/tracks?limit=100&market=FR`;
 
-  let pages = 0;
-  const MAX_PAGES = 100; // sécurité : max 10 000 titres
-
-  while (url && pages < MAX_PAGES) {
-    pages++;
+  while (url) {
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
     if (!res.ok) {
-      if (res.status === 403) break; // Silencieux pour les playlists restreintes
-      throw new Error(`Erreur Spotify /tracks: ${res.status}`);
+      if (res.status === 403) break;
+      throw new Error(`Erreur Spotify: ${res.status}`);
     }
 
     const data = await res.json() as {
@@ -118,7 +179,6 @@ async function fetchAllPlaylistTracks(
         if (item.track) tracks.push(item.track);
       }
     }
-
     url = data.next || null;
   }
 
