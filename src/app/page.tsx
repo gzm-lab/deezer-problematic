@@ -271,7 +271,6 @@ export default function Home() {
                   </option>
                 ))}
               </select>
-              {/* Chevron custom */}
               <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
@@ -290,8 +289,15 @@ export default function Home() {
               )}
             </button>
           </div>
+        ) : platform === "spotify" ? (
+          /* Spotify non connecté : juste le bouton de connexion */
+          <div className="text-center py-4">
+            <p className="text-sm text-muted mb-4">
+              Connecte-toi à Spotify pour choisir une playlist.
+            </p>
+          </div>
         ) : (
-          /* Pas connecté ou Deezer : champ URL */
+          /* Deezer : champ URL */
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
             <div className="flex-1 relative">
               <input
