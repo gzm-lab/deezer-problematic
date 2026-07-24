@@ -81,9 +81,13 @@ async function fetchAllPlaylistTracks(
   // Essayer d'abord avec additional_types=track (inclut les pistes dans items)
   const playlistUrl = `${SPOTIFY_API}/playlists/${playlistId}?additional_types=track&market=FR`;
 
+  console.log("[Spotify] Fetching:", playlistUrl);
+
   const firstRes = await fetch(playlistUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
+
+  console.log("[Spotify] Status:", firstRes.status);
 
   if (!firstRes.ok) {
     if (firstRes.status === 404) throw new Error("Playlist Spotify non trouvée.");
