@@ -122,12 +122,11 @@ async function fetchAllPlaylistTracks(
   const firstData = await firstRes.json() as Record<string, unknown>;
   const title = (firstData.name as string) || "";
 
-  // Fallback: si additional_types=track ne renvoie pas items, utiliser /tracks
-  if (!firstData.items) {
+  // Fallback: si additional_types=track ne renvoie pas de tracks, utiliser /tracks
+  const paging = firstData.items as SpotifyPlaylistItems | undefined;
+  if (!paging || !paging.items || paging.items.length === 0) {
     return fetchTracksSequential(playlistId, accessToken, title);
   }
-
-  const paging = firstData.items as SpotifyPlaylistItems;
   const total = paging?.total || 0;
 
   const tracks: SpotifyTrackObject[] = [];
