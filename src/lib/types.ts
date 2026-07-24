@@ -39,3 +39,15 @@ export interface ArtistEntry {
   level: ArtistLevel;
   addedAt: string;
 }
+
+// Types Spotify
+export interface SpotifyTrackObject {
+  id: string;
+  name: string;
+  artists: { name: string }[];
+  album: {
+    images?: { url: string }[];
+  };
+  duration_ms: number;
+  type: string;
+}
