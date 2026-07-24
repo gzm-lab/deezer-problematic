@@ -303,7 +303,7 @@ export default function AdminPage() {
                 <select
                   value={artist.level}
                   onChange={(e) => handleLevelChange(artist.name, e.target.value as ArtistLevel)}
-                  className="px-2 py-1.5 rounded-[var(--radius-sm)] bg-bg-warm border border-border text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-accent/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="px-2 py-1.5 rounded-[var(--radius-sm)] bg-bg-warm border border-border text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-accent/30 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                 >
                   {LEVELS.map((l) => (
                     <option key={l} value={l}>
@@ -313,7 +313,7 @@ export default function AdminPage() {
                 </select>
                 <button
                   onClick={() => handleDelete(artist.name)}
-                  className="px-2 py-1.5 rounded-[var(--radius-sm)] text-xs font-medium text-muted hover:text-danger hover:bg-danger-light opacity-0 group-hover:opacity-100 transition-all"
+                  className="px-2 py-1.5 rounded-[var(--radius-sm)] text-xs font-medium text-muted hover:text-danger hover:bg-danger-light sm:opacity-0 sm:group-hover:opacity-100 transition-all"
                 >
                   ✕
                 </button>

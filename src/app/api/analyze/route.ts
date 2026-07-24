@@ -9,9 +9,21 @@ import { getArtists } from "@/lib/blob";
 import { ArtistLevel } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
+  let body: Record<string, unknown>;
   try {
-    const body = await request.json();
-    const { platform, url, level } = body;
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: "JSON invalide dans le corps de la requête" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const platform = body.platform as string | undefined;
+    const url = body.url as string | undefined;
+    const level = body.level as string | undefined;
+    const token = body.token as string | undefined;
 
     if (!url) {
       return NextResponse.json({ error: "URL de playlist requise" }, { status: 400 });
@@ -26,8 +38,8 @@ export async function POST(request: NextRequest) {
 
     // Valider le niveau de filtre
     const validLevels: ArtistLevel[] = ["plaintes", "condamné", "non lieu"];
-    const filterLevel: ArtistLevel | undefined = validLevels.includes(level)
-      ? level
+    const filterLevel: ArtistLevel | undefined = validLevels.includes(level as ArtistLevel)
+      ? (level as ArtistLevel)
       : undefined;
 
     const artists = await getArtists(filterLevel);
@@ -49,7 +61,7 @@ export async function POST(request: NextRequest) {
     if (platform === "spotify") {
       result = await analyzeSpotifyPlaylist(url, artists);
     } else {
-      result = await analyzeDeezerPlaylist(url, artists, body.token);
+      result = await analyzeDeezerPlaylist(url, artists, token);
     }
 
     return NextResponse.json({ ...result, level: filterLevel });

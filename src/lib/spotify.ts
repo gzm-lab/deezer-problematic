@@ -121,6 +121,12 @@ async function fetchAllPlaylistTracks(
 
   const firstData = await firstRes.json() as Record<string, unknown>;
   const title = (firstData.name as string) || "";
+
+  // Fallback: si additional_types=track ne renvoie pas items, utiliser /tracks
+  if (!firstData.items) {
+    return fetchTracksSequential(playlistId, accessToken, title);
+  }
+
   const paging = firstData.items as SpotifyPlaylistItems;
   const total = paging?.total || 0;
 
@@ -216,6 +222,37 @@ export function spotifyCountMatches(
   }
 
   return { count, details };
+}
+
+/** Fallback: utilise /tracks au lieu de additional_types=track */
+async function fetchTracksSequential(
+  playlistId: string,
+  accessToken: string,
+  title: string
+): Promise<{ tracks: SpotifyTrackObject[]; title: string }> {
+  const tracks: SpotifyTrackObject[] = [];
+  let url: string | null = `${SPOTIFY_API}/playlists/${playlistId}/tracks?limit=100&market=FR`;
+
+  while (url) {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!res.ok) {
+      if (res.status === 403) break; // Playlist inaccessible, retourne ce qu'on a
+      throw new Error(`Erreur Spotify: ${res.status}`);
+    }
+
+    const data = await res.json() as { items: { track: SpotifyTrackObject }[]; next: string | null };
+    if (data.items) {
+      for (const item of data.items) {
+        if (item.track) tracks.push(item.track);
+      }
+    }
+    url = data.next || null;
+  }
+
+  return { tracks, title };
 }
 
 export async function analyzeSpotifyPlaylist(
