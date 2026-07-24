@@ -79,7 +79,8 @@ async function fetchAllPlaylistTracks(
   accessToken: string
 ): Promise<{ tracks: SpotifyTrackObject[]; title: string }> {
   // Essayer d'abord avec additional_types=track (inclut les pistes dans items)
-  const playlistUrl = `${SPOTIFY_API}/playlists/${playlistId}?additional_types=track&market=FR`;
+  // On demande aussi le tracks.total avec fields au cas où additional_types ne renvoie rien
+  const playlistUrl = `${SPOTIFY_API}/playlists/${playlistId}?additional_types=track&market=FR&fields=name,tracks.total,items(total,next,items(item(name,artists(name),album(images(url)),type)))`;
 
   const firstRes = await fetch(playlistUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -145,7 +146,6 @@ async function fetchAllPlaylistTracks(
 
   // Fallback: si additional_types=track n'a rien donné, essayer /tracks
   if (tracks.length === 0) {
-    console.log("[Spotify] additional_types=track returned 0 tracks, trying /tracks fallback");
     return fetchTracksFallback(playlistId, accessToken, title);
   }
 
@@ -166,10 +166,7 @@ async function fetchTracksFallback(
     });
 
     if (!res.ok) {
-      if (res.status === 403) {
-        console.log("[Spotify] /tracks returned 403, stopping");
-        break;
-      }
+      if (res.status === 403) break;
     }
 
     const data = await res.json() as {
