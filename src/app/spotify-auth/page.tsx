@@ -7,12 +7,7 @@ export const metadata: Metadata = {
   title: "Connexion Spotify...",
 };
 
-async function getSiteUrl(): Promise<string> {
-  // Vercel exposes this at runtime
-  try {
-    const vc = process.env.VERCEL_URL;
-    if (vc) return `https://${vc}`;
-  } catch { /* */ }
+function getSiteUrl(): string {
   return process.env.NEXT_PUBLIC_SITE_URL || "https://problematic.gzm.fr";
 }
 
@@ -22,7 +17,7 @@ export default async function SpotifyAuthPage({
   searchParams: Promise<{ code?: string; error?: string }>;
 }) {
   const { code, error } = await searchParams;
-  const siteUrl = await getSiteUrl();
+  const siteUrl = getSiteUrl();
 
   if (error || !code) {
     const msg = error === "access_denied"
