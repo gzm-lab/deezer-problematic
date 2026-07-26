@@ -38,11 +38,15 @@ export default function Home() {
   }
 
   useEffect(() => {
-    // Vérifier les params d'URL (retour du callback OAuth)
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get("spotify_token");
-    const expires = params.get("spotify_expires");
-    const authError = params.get("spotify_error");
+    // Vérifier le fragment d'URL (retour du callback OAuth — iOS safe)
+    const hash = window.location.hash.substring(1); // enlever le #
+    const hashParams = new URLSearchParams(hash);
+    const token = hashParams.get("spotify_token");
+    const expires = hashParams.get("spotify_expires");
+
+    // Vérifier aussi les query params pour les erreurs
+    const queryParams = new URLSearchParams(window.location.search);
+    const authError = queryParams.get("spotify_error");
 
     if (authError) {
       setSpotifyError(decodeURIComponent(authError));
@@ -58,8 +62,8 @@ export default function Home() {
       setSpotifyToken(token);
       setSpotifyConnected(true);
       fetchSpotifyPlaylists(token);
-      // Nettoyer l'URL
-      window.history.replaceState({}, "", "/");
+      // Nettoyer le hash de l'URL
+      window.location.hash = "";
       return;
     }
 

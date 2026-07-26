@@ -49,10 +49,10 @@ export async function GET(request: NextRequest) {
 
     const expiresAt = Date.now() + data.expires_in * 1000;
 
-    // Rediriger vers la page d'accueil avec le token
-    return NextResponse.redirect(
-      `/?spotify_token=${encodeURIComponent(data.access_token)}&spotify_expires=${expiresAt}`
-    );
+    // Rediriger vers la page d'accueil avec le token dans le fragment (pas query params)
+    // Le fragment évite le bug iOS "Download callback"
+    const fragment = `spotify_token=${encodeURIComponent(data.access_token)}&spotify_expires=${expiresAt}`;
+    return NextResponse.redirect(`/#${fragment}`);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.redirect(`/?spotify_error=${encodeURIComponent(msg)}`);
