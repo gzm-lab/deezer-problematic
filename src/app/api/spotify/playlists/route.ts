@@ -11,11 +11,16 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    console.log("[playlists] token:", token.substring(0, 15) + "...");
     const res = await fetch("https://api.spotify.com/v1/me/playlists?limit=50", {
       headers: { Authorization: `Bearer ${token}` },
     });
 
+    console.log("[playlists] status:", res.status);
+
     if (!res.ok) {
+      const errBody = await res.text();
+      console.log("[playlists] error body:", errBody.substring(0, 200));
       if (res.status === 401) {
         return NextResponse.json({ error: "Token expiré, reconnecte-toi." }, { status: 401 });
       }

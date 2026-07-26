@@ -61,6 +61,7 @@ export default function Home() {
       sessionStorage.setItem("spotify_expires", String(expiresAt));
       setSpotifyToken(token);
       setSpotifyConnected(true);
+      setPlatform("spotify");
       fetchSpotifyPlaylists(token);
       // Nettoyer le hash de l'URL
       window.location.hash = "";
@@ -76,6 +77,7 @@ export default function Home() {
       if (Date.now() < expiresAt) {
         setSpotifyToken(storedToken);
         setSpotifyConnected(true);
+        setPlatform("spotify");
         fetchSpotifyPlaylists(storedToken);
       } else {
         sessionStorage.removeItem("spotify_token");
