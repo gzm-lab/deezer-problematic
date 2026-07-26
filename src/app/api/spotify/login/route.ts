@@ -1,4 +1,4 @@
-// Redirige vers l'auth Spotify OAuth
+// Redirige vers l'auth Spotify OAuth (user-facing)
 // GET /api/spotify/login
 
 import { NextResponse } from "next/server";
@@ -10,6 +10,7 @@ const SCOPES = [
 
 export async function GET() {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://problematic.gzm.fr";
 
   if (!clientId) {
     return NextResponse.json(
@@ -18,8 +19,7 @@ export async function GET() {
     );
   }
 
-  // Construire l'URL de callback (même domaine que la requête)
-  const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL || "https://deezer-problematic.vercel.app"}/api/spotify/callback`;
+  const redirectUri = `${baseUrl}/api/spotify/callback`;
 
   const params = new URLSearchParams({
     client_id: clientId,
