@@ -19,7 +19,7 @@ export async function GET() {
     );
   }
 
-  const redirectUri = `${baseUrl}/api/spotify/callback`;
+  const redirectUri = `${baseUrl}/spotify-auth`;
 
   const params = new URLSearchParams({
     client_id: clientId,
