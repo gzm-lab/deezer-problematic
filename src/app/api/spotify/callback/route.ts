@@ -6,10 +6,11 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const error = request.nextUrl.searchParams.get("error");
-  const state = request.nextUrl.searchParams.get("state");
 
   if (error || !code) {
-    const msg = error === "access_denied" ? "Tu as refusé l&apos;accès Spotify." : "Pas de code reçu.";
+    const msg = error === "access_denied"
+      ? "Tu as refusé l&apos;accès Spotify."
+      : "Pas de code reçu.";
     return NextResponse.redirect(`/?spotify_error=${encodeURIComponent(msg)}`);
   }
 
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
     const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL || "https://problematic.gzm.fr"}/api/spotify/callback`;
 
     if (!clientId || !clientSecret) {
-      return NextResponse.redirect(`/?spotify_error=${encodeURIComponent("Config Spotify manquante côté serveur.")}`);
+      return NextResponse.redirect(`/?spotify_error=${encodeURIComponent("Config Spotify manquante.")}`);
     }
 
     const res = await fetch("https://accounts.spotify.com/api/token", {
@@ -49,10 +50,54 @@ export async function GET(request: NextRequest) {
 
     const expiresAt = Date.now() + data.expires_in * 1000;
 
-    // Rediriger vers la page d'accueil avec le token dans le fragment (pas query params)
-    // Le fragment évite le bug iOS "Download callback"
-    const fragment = `spotify_token=${encodeURIComponent(data.access_token)}&spotify_expires=${expiresAt}`;
-    return NextResponse.redirect(`/#${fragment}`);
+    // Au lieu d'un redirect HTTP (qui trigger "Download callback" sur iOS),
+    // on sert une page HTML qui fait une redirection JS immédiate
+    const tokenEncoded = encodeURIComponent(data.access_token);
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Redirection...</title>
+<style>
+  body {
+    font-family: system-ui, sans-serif;
+    background: #fafaf8;
+    color: #2d2d2d;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    text-align: center;
+  }
+  .loader {
+    width: 32px;
+    height: 32px;
+    border: 3px solid #e5e0d5;
+    border-top-color: #c17f59;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  p { color: #8a8378; font-size: 14px; }
+</style>
+</head>
+<body>
+<div>
+  <div class="loader"></div>
+  <p>Connexion en cours...</p>
+</div>
+<script>
+  window.location.replace('/#spotify_token=${tokenEncoded}&spotify_expires=${expiresAt}');
+</script>
+</body>
+</html>`;
+
+    return new NextResponse(html, {
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.redirect(`/?spotify_error=${encodeURIComponent(msg)}`);
